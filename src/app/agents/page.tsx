@@ -59,6 +59,7 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [voices, setVoices] = useState<Record<string, string>>({}) // voice_id -> voice_name mapping
   const [showWizard, setShowWizard] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { tokens } = useAuth()
@@ -114,6 +115,17 @@ export default function AgentsPage() {
   const handleAgentCreated = (newAgent: Agent) => {
     setAgents(prev => [...prev, newAgent])
     setShowWizard(false)
+  }
+
+  const handleAgentUpdated = (updatedAgent: Agent) => {
+    setAgents(prev => prev.map(agent => 
+      agent.id === updatedAgent.id ? updatedAgent : agent
+    ))
+    setEditingAgent(null)
+  }
+
+  const handleEditAgent = (agent: Agent) => {
+    setEditingAgent(agent)
   }
 
   return (
@@ -218,7 +230,11 @@ export default function AgentsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditAgent(agent)}
+                      >
                         <Settings className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
@@ -240,6 +256,15 @@ export default function AgentsPage() {
         onClose={() => setShowWizard(false)}
         onComplete={handleAgentCreated}
       />
+
+      {editingAgent && (
+        <AgentWizard
+          isOpen={!!editingAgent}
+          onClose={() => setEditingAgent(null)}
+          onComplete={handleAgentUpdated}
+          editingAgent={editingAgent}
+        />
+      )}
       </Layout>
     </ProtectedRoute>
   )

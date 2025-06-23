@@ -7,54 +7,22 @@ import { Input } from '@/components/ui/Input'
 import { Agent, Template, Voice } from '@/types'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { AgentAPI } from '@/lib/agent-api'
+import { TemplateAPI, TemplateResponse } from '@/lib/template-api'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface AgentWizardProps {
   isOpen: boolean
   onClose: () => void
   onComplete: (agent: Agent) => void
+  editingAgent?: Agent
 }
 
-const mockTemplates: Template[] = [
-  {
-    id: '1',
-    name: 'Healthcare Lead Qualification',
-    industry: 'Healthcare',
-    use_case: 'Lead Qualification',
-    agent_name_template: 'Healthcare Lead Qualifier',
-    prompt_template: 'You are a friendly healthcare assistant calling about {{service_type}}. Ask about their {{health_concern}} and availability for consultation.',
-    variables: ['service_type', 'health_concern', 'preferred_time'],
-    functions: ['check_calendar_availability', 'book_on_calendar', 'end_call'],
-    welcome_message: 'Hello! I\'m calling from {{company_name}} regarding your interest in our healthcare services.',
-    max_attempts: 5,
-    retry_delay_minutes: 60,
-    business_hours_start: '09:00',
-    business_hours_end: '17:00',
-    max_call_duration_minutes: 15
-  },
-  {
-    id: '2',
-    name: 'Real Estate Appointment Setting',
-    industry: 'Real Estate',
-    use_case: 'Appointment Setting',
-    agent_name_template: 'Real Estate Appointment Setter',
-    prompt_template: 'Hi, this is {{agent_name}} from {{company_name}}. I\'m calling about your interest in {{property_type}} in {{location}}.',
-    variables: ['property_type', 'location', 'budget_range'],
-    functions: ['check_calendar_availability', 'book_on_calendar', 'transfer_call'],
-    welcome_message: 'Hi! This is {{agent_name}} from {{company_name}}. I\'m calling about your interest in properties.',
-    max_attempts: 4,
-    retry_delay_minutes: 45,
-    business_hours_start: '08:00',
-    business_hours_end: '19:00',
-    max_call_duration_minutes: 20
-  }
-]
+// Templates will be loaded from the API
 
-// Voices will be loaded from the API
-
-export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
+export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: AgentWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateResponse | null>(null)
+  const [templates, setTemplates] = useState<TemplateResponse[]>([])
   const [voices, setVoices] = useState<Voice[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,10 +42,30 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
     max_call_duration_minutes: 20
   })
 
-  // Fetch voices when wizard opens
+  // Initialize form data when editing
+  useEffect(() => {
+    if (editingAgent) {
+      setFormData({
+        name: editingAgent.name,
+        prompt: editingAgent.prompt,
+        welcome_message: editingAgent.welcome_message,
+        voice_id: editingAgent.voice_id || '',
+        inbound_phone: editingAgent.inbound_phone || '',
+        outbound_phone: editingAgent.outbound_phone || '',
+        max_attempts: editingAgent.max_attempts,
+        retry_delay_minutes: editingAgent.retry_delay_minutes,
+        business_hours_start: editingAgent.business_hours_start,
+        business_hours_end: editingAgent.business_hours_end,
+        max_call_duration_minutes: editingAgent.max_call_duration_minutes
+      })
+    }
+  }, [editingAgent])
+
+  // Fetch voices and templates when wizard opens
   useEffect(() => {
     if (isOpen && tokens?.access_token) {
       fetchVoices()
+      fetchTemplates()
     }
   }, [isOpen, tokens])
 
@@ -96,18 +84,29 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
     }
   }
 
-  const handleTemplateSelect = (template: Template) => {
+  const fetchTemplates = async () => {
+    if (!tokens?.access_token) return
+
+    try {
+      const templatesData = await TemplateAPI.getAllTemplates(tokens.access_token)
+      setTemplates(templatesData.templates)
+    } catch (error) {
+      console.error('Failed to fetch templates:', error)
+    }
+  }
+
+  const handleTemplateSelect = (template: TemplateResponse) => {
     setSelectedTemplate(template)
     setFormData(prev => ({
       ...prev,
-      name: template.agent_name_template,
-      prompt: template.prompt_template,
+      name: template.name,
+      prompt: template.prompt,
       welcome_message: template.welcome_message,
-      max_attempts: template.max_attempts,
-      retry_delay_minutes: template.retry_delay_minutes,
-      business_hours_start: template.business_hours_start,
-      business_hours_end: template.business_hours_end,
-      max_call_duration_minutes: template.max_call_duration_minutes
+      max_attempts: template.suggested_settings.max_attempts || 3,
+      retry_delay_minutes: template.suggested_settings.retry_delay_minutes || 30,
+      business_hours_start: template.suggested_settings.business_hours_start || '09:00',
+      business_hours_end: template.suggested_settings.business_hours_end || '17:00',
+      max_call_duration_minutes: template.suggested_settings.max_call_duration_minutes || 20
     }))
   }
 
@@ -138,8 +137,8 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
         variables: selectedTemplate?.variables.reduce((acc, variable) => {
           acc[variable] = `{{${variable}}}`
           return acc
-        }, {} as Record<string, any>) || {},
-        functions: selectedTemplate?.functions || [],
+        }, {} as Record<string, any>) || editingAgent?.variables || {},
+        functions: selectedTemplate?.functions || editingAgent?.functions || [],
         inbound_phone: formData.inbound_phone || undefined,
         outbound_phone: formData.outbound_phone || undefined,
         max_attempts: formData.max_attempts,
@@ -150,8 +149,16 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
         max_call_duration_minutes: formData.max_call_duration_minutes
       }
 
-      const newAgent = await AgentAPI.createAgent(agentData, tokens.access_token)
-      onComplete(newAgent)
+      let resultAgent: Agent
+      if (editingAgent) {
+        // Update existing agent
+        resultAgent = await AgentAPI.updateAgent(editingAgent.id, agentData, tokens.access_token)
+      } else {
+        // Create new agent
+        resultAgent = await AgentAPI.createAgent(agentData, tokens.access_token)
+      }
+      
+      onComplete(resultAgent)
       
       // Reset form
       setCurrentStep(1)
@@ -170,7 +177,7 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
         max_call_duration_minutes: 20
       })
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create agent')
+      setError(error instanceof Error ? error.message : 'Failed to save agent')
     } finally {
       setLoading(false)
     }
@@ -188,27 +195,47 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
               placeholder="Enter agent name"
             />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Choose a Template (Optional)
-              </label>
-              <div className="grid grid-cols-1 gap-3">
-                {mockTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                      selectedTemplate?.id === template.id
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => handleTemplateSelect(template)}
-                  >
-                    <div className="font-medium">{template.name}</div>
-                    <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
+            {!editingAgent && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Choose a Template (Optional)
+                </label>
+                {templates.length === 0 ? (
+                  <div className="p-4 border rounded-lg text-center text-gray-500">
+                    Loading templates...
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
+                    {templates.map((template) => (
+                      <div
+                        key={template.id}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          selectedTemplate?.id === template.id
+                            ? 'border-primary-500 bg-primary-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => handleTemplateSelect(template)}
+                      >
+                        <div className="font-medium">{template.name}</div>
+                        <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
+                        {template.suggested_settings.max_call_duration_minutes && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {template.suggested_settings.max_call_duration_minutes} min calls, {template.suggested_settings.max_attempts || 3} attempts
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+            {editingAgent && (
+              <div className="bg-blue-50 p-4 rounded-md">
+                <p className="text-blue-800 text-sm">
+                  <strong>Editing existing agent:</strong> You can modify all settings below. Templates are not applicable when editing.
+                </p>
+              </div>
+            )}
           </div>
         )
 
@@ -357,7 +384,7 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Agent" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={editingAgent ? "Edit Agent" : "Create New Agent"} size="lg">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex space-x-2">
@@ -399,7 +426,10 @@ export function AgentWizard({ isOpen, onClose, onComplete }: AgentWizardProps) {
           
           {currentStep === 4 ? (
             <Button onClick={handleComplete} disabled={loading}>
-              {loading ? 'Creating...' : 'Create Agent'}
+              {loading 
+                ? (editingAgent ? 'Updating...' : 'Creating...') 
+                : (editingAgent ? 'Update Agent' : 'Create Agent')
+              }
             </Button>
           ) : (
             <Button onClick={handleNext} disabled={loading}>
