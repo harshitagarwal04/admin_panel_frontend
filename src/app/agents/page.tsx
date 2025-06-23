@@ -6,7 +6,7 @@ import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Agent } from '@/types'
-import { Plus, Phone, Settings, Play, Pause } from 'lucide-react'
+import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal } from 'lucide-react'
 import { AgentWizard } from '@/components/agents/AgentWizard'
 import { AgentAPI } from '@/lib/agent-api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -131,16 +131,27 @@ export default function AgentsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">AI Agents</h1>
-            <p className="text-gray-600">Manage your voice AI sales agents</p>
+          <div className="flex items-center space-x-4">
+            <h1 className="text-xl font-semibold text-gray-900">All Agents</h1>
           </div>
-          <Button onClick={() => setShowWizard(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Agent
-          </Button>
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+              />
+            </div>
+            <Button variant="outline">
+              Import
+            </Button>
+            <Button onClick={() => setShowWizard(true)} variant="dark">
+              Create an Agent
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -149,7 +160,7 @@ export default function AgentsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg border border-gray-200">
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
@@ -161,86 +172,74 @@ export default function AgentsPage() {
             </div>
           ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Voice</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
+            <TableHeader className="bg-gray-50">
+              <TableRow className="border-b border-gray-200">
+                <TableHead className="font-medium text-gray-700 py-3">Agent Name</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Agent Type</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Voice</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Phone</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Edited by</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {agents.map((agent) => (
-                <TableRow key={agent.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{agent.name}</div>
-                      <div className="text-sm text-gray-500">
-                        Max {agent.max_attempts} attempts, {agent.retry_delay_minutes}min delay
+                <TableRow key={agent.id} className="hover:bg-gray-50 border-b border-gray-100">
+                  <TableCell className="py-4">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-3 h-3 rounded-full ${agent.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <div>
+                        <div className="font-medium text-gray-900">{agent.name}</div>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {agent.inbound_phone && (
-                        <div className="flex items-center text-sm">
-                          <Phone className="h-3 w-3 mr-1 text-green-600" />
-                          {agent.inbound_phone}
-                        </div>
-                      )}
-                      {agent.outbound_phone && (
-                        <div className="flex items-center text-sm">
-                          <Phone className="h-3 w-3 mr-1 text-blue-600" />
-                          {agent.outbound_phone}
-                        </div>
-                      )}
-                      {!agent.inbound_phone && !agent.outbound_phone && (
-                        <div className="text-sm text-gray-500">No phone numbers</div>
-                      )}
+                  <TableCell className="py-4">
+                    <span className="text-sm text-gray-600">Multi Prompt</span>
+                  </TableCell>
+                  <TableCell className="py-4">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
+                        <span className="text-xs font-medium text-amber-800">A</span>
+                      </div>
+                      <span className="text-sm text-gray-900">
+                        {agent.voice_id && voices[agent.voice_id] 
+                          ? voices[agent.voice_id] 
+                          : 'Adrian'}
+                      </span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <span className="text-sm">
-                      {agent.voice_id && voices[agent.voice_id] 
-                        ? voices[agent.voice_id] 
-                        : agent.voice_id || 'No voice selected'}
-                    </span>
+                  <TableCell className="py-4">
+                    {agent.outbound_phone ? (
+                      <span className="text-sm text-blue-600">{agent.outbound_phone}</span>
+                    ) : (
+                      <span className="text-sm text-gray-400">-</span>
+                    )}
                   </TableCell>
-                  <TableCell>
-                    <button
-                      onClick={() => toggleAgentStatus(agent.id)}
-                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        agent.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {agent.status === 'active' ? (
-                        <Play className="h-3 w-3 mr-1" />
-                      ) : (
-                        <Pause className="h-3 w-3 mr-1" />
-                      )}
-                      {agent.status}
-                    </button>
+                  <TableCell className="py-4">
+                    <div className="text-sm text-gray-600">
+                      {agent.created_at ? (
+                        <>
+                          {new Date(agent.created_at).toLocaleDateString('en-US', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            year: 'numeric'
+                          })}, {new Date(agent.created_at).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                          })}
+                        </>
+                      ) : 'Unknown'}
+                    </div>
                   </TableCell>
-                  <TableCell>
-                    {agent.created_at ? new Date(agent.created_at).toLocaleDateString() : 'Unknown'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
+                  <TableCell className="py-4">
+                    <div className="flex justify-end">
+                      <button 
                         onClick={() => handleEditAgent(agent)}
+                        className="p-1 text-gray-400 hover:text-gray-600"
                       >
-                        <Settings className="h-4 w-4 mr-1" />
-                        Edit
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Test
-                      </Button>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
                     </div>
                   </TableCell>
                 </TableRow>
