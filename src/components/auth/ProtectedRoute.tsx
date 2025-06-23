@@ -15,7 +15,12 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.push('/login')
+        return
+      }
+
       if (requireOnboarding && user && !user.company_id) {
         router.push('/onboarding')
         return
@@ -33,15 +38,15 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
   }
 
   if (!isAuthenticated) {
-    return null
+    return <LoadingSpinner text="Redirecting to login..." />
   }
 
   if (requireOnboarding && user && !user.company_id) {
-    return null
+    return <LoadingSpinner text="Redirecting to onboarding..." />
   }
 
   if (!requireOnboarding && user && user.company_id) {
-    return null
+    return <LoadingSpinner text="Redirecting..." />
   }
 
   return <>{children}</>

@@ -11,7 +11,6 @@ import {
   History, 
   Settings, 
   LogOut,
-  Building2,
   User
 } from 'lucide-react'
 
@@ -20,7 +19,6 @@ const navigation = [
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Call History', href: '/calls', icon: History },
   { name: 'Phone Numbers', href: '/phone', icon: Phone },
-  { name: 'Company', href: '/company', icon: Building2 },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 

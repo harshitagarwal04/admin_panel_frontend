@@ -3,23 +3,29 @@
 import { useState, useRef } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Lead } from '@/types'
+import { Lead, Agent } from '@/types'
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { LeadAPI } from '@/lib/lead-api'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface CSVImportProps {
   isOpen: boolean
   onClose: () => void
   onImport: (leads: Lead[]) => void
+  agents: Agent[]
 }
 
-export function CSVImport({ isOpen, onClose, onImport }: CSVImportProps) {
+export function CSVImport({ isOpen, onClose, onImport, agents }: CSVImportProps) {
   const [file, setFile] = useState<File | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [errors, setErrors] = useState<string[]>([])
   const [preview, setPreview] = useState<any[]>([])
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({})
+  const [importResult, setImportResult] = useState<{ success_count: number; error_count: number; errors: Array<{ row: number; error: string }> } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { tokens } = useAuth()
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -63,87 +69,43 @@ export function CSVImport({ isOpen, onClose, onImport }: CSVImportProps) {
   }
 
   const handleImport = async () => {
-    if (!file || !columnMapping.first_name || !columnMapping.phone_e164) {
-      setErrors(['Please map required fields: First Name and Phone'])
+    if (!file || !selectedAgent || !tokens?.access_token) {
+      setErrors(['Please select an agent and upload a CSV file'])
       return
     }
 
     setImporting(true)
-    setProgress(0)
+    setProgress(25)
     setErrors([])
+    setImportResult(null)
 
     try {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const text = e.target?.result as string
-        const lines = text.split('\n').filter(line => line.trim())
-        const headers = lines[0].split(',').map(h => h.trim())
-        
-        const leads: Lead[] = []
-        const errors: string[] = []
-        
-        for (let i = 1; i < lines.length; i++) {
-          setProgress((i / (lines.length - 1)) * 100)
-          
-          const values = lines[i].split(',').map(v => v.trim())
-          const row = headers.reduce((obj, header, index) => {
-            obj[header] = values[index] || ''
-            return obj
-          }, {} as Record<string, string>)
-
-          const firstName = row[columnMapping.first_name]
-          const phone = row[columnMapping.phone_e164]
-
-          if (!firstName || !phone) {
-            errors.push(`Row ${i + 1}: Missing required fields`)
-            continue
-          }
-
-          const lead: Lead = {
-            id: Math.random().toString(36).substr(2, 9),
-            agent_id: '1',
-            first_name: firstName,
-            phone_e164: phone.startsWith('+') ? phone : `+1${phone}`,
-            status: 'new',
-            custom_fields: Object.keys(row).reduce((fields, key) => {
-              if (key !== columnMapping.first_name && key !== columnMapping.phone_e164) {
-                fields[key] = row[key]
-              }
-              return fields
-            }, {} as Record<string, any>),
-            schedule_at: new Date().toISOString(),
-            attempts_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-
-          leads.push(lead)
-        }
-
+      const result = await LeadAPI.importCSV(file, selectedAgent, tokens.access_token)
+      setProgress(100)
+      setImportResult(result)
+      
+      if (result.error_count === 0) {
         setTimeout(() => {
-          setImporting(false)
-          setProgress(100)
-          if (errors.length > 0) {
-            setErrors(errors)
-          } else {
-            onImport(leads)
-          }
-        }, 1000)
+          onImport([]) // We don't return the actual leads, just trigger refresh
+        }, 1500)
       }
-      reader.readAsText(file)
     } catch (error) {
       setImporting(false)
-      setErrors(['Failed to import CSV file'])
+      setErrors([error instanceof Error ? error.message : 'Failed to import CSV file'])
+    } finally {
+      setImporting(false)
     }
   }
 
   const resetState = () => {
     setFile(null)
+    setSelectedAgent('')
     setImporting(false)
     setProgress(0)
     setErrors([])
     setPreview([])
     setColumnMapping({})
+    setImportResult(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -196,38 +158,37 @@ export function CSVImport({ isOpen, onClose, onImport }: CSVImportProps) {
             </div>
 
             <div>
-              <h3 className="text-lg font-medium mb-3">Column Mapping</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500"
-                    value={columnMapping.first_name || ''}
-                    onChange={(e) => setColumnMapping(prev => ({ ...prev, first_name: e.target.value }))}
-                  >
-                    <option value="">Select column...</option>
-                    {preview.length > 0 && Object.keys(preview[0]).map(key => (
-                      <option key={key} value={key}>{key}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500"
-                    value={columnMapping.phone_e164 || ''}
-                    onChange={(e) => setColumnMapping(prev => ({ ...prev, phone_e164: e.target.value }))}
-                  >
-                    <option value="">Select column...</option>
-                    {preview.length > 0 && Object.keys(preview[0]).map(key => (
-                      <option key={key} value={key}>{key}</option>
-                    ))}
-                  </select>
-                </div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Assign to Agent <span className="text-red-500">*</span>
+              </label>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500"
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+              >
+                <option value="">Select agent...</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                All leads in this CSV will be assigned to the selected agent
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-medium mb-3">CSV Format Requirements</h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Required Columns:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• <strong>first_name</strong> - Lead's first name</li>
+                  <li>• <strong>phone</strong> - Phone number (will be normalized to E.164 format)</li>
+                </ul>
+                <h4 className="font-medium text-blue-900 mt-3 mb-2">Optional Columns:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• <strong>schedule_at</strong> - ISO 8601 datetime for scheduling</li>
+                  <li>• Any other columns will be stored as custom fields</li>
+                </ul>
               </div>
             </div>
 
@@ -280,13 +241,41 @@ export function CSVImport({ isOpen, onClose, onImport }: CSVImportProps) {
           </div>
         )}
 
-        {progress === 100 && !importing && (
+        {importResult && (
           <div className="text-center space-y-4">
-            <CheckCircle className="mx-auto h-12 w-12 text-green-600" />
-            <div>
-              <div className="text-lg font-medium text-green-800">Import completed!</div>
-              <div className="text-sm text-gray-600">Leads have been successfully imported</div>
-            </div>
+            {importResult.error_count === 0 ? (
+              <>
+                <CheckCircle className="mx-auto h-12 w-12 text-green-600" />
+                <div>
+                  <div className="text-lg font-medium text-green-800">Import completed!</div>
+                  <div className="text-sm text-gray-600">
+                    Successfully imported {importResult.success_count} leads
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="mx-auto h-12 w-12 text-yellow-600" />
+                <div>
+                  <div className="text-lg font-medium text-yellow-800">Import completed with warnings</div>
+                  <div className="text-sm text-gray-600">
+                    Successfully imported {importResult.success_count} leads, {importResult.error_count} failed
+                  </div>
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="mt-4 text-left">
+                    <h4 className="font-medium text-red-800 mb-2">Import Errors:</h4>
+                    <div className="bg-red-50 border border-red-200 rounded p-3 max-h-32 overflow-y-auto">
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {importResult.errors.map((error, index) => (
+                          <li key={index}>Row {error.row}: {error.error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -312,10 +301,10 @@ export function CSVImport({ isOpen, onClose, onImport }: CSVImportProps) {
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          {file && !importing && progress === 0 && (
+          {file && !importing && !importResult && (
             <Button 
               onClick={handleImport}
-              disabled={!columnMapping.first_name || !columnMapping.phone_e164}
+              disabled={!selectedAgent}
             >
               Import Leads
             </Button>

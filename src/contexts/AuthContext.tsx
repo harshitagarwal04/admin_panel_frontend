@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { AuthState, AuthUser, AuthTokens, OnboardingData } from '@/types/auth'
 import { AuthStorage } from '@/lib/auth-storage'
 import { AuthAPI } from '@/lib/auth-api'
@@ -28,6 +29,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const router = useRouter()
   const [state, setState] = useState<AuthState>({
     user: null,
     tokens: null,
@@ -179,7 +181,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated: false,
       error: null,
     })
-  }, [])
+
+    // Redirect to home page after logout
+    router.push('/')
+  }, [router])
 
   const initializeAuth = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }))
