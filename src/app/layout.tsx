@@ -6,8 +6,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Voice AI Sales Agent Admin Panel',
-  description: 'Admin panel for managing Voice AI sales agents',
+  title: 'ConversAI Labs Admin Panel',
+  description: 'Admin panel for managing ConversAI Labs sales agents',
 }
 
 export default function RootLayout({
