@@ -1,4 +1,3 @@
-import { InteractionAttempt } from '@/types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
 
@@ -74,10 +73,7 @@ export class CallAPI {
     }
 
     const data: CallHistoryListResponse = await response.json()
-    return {
-      ...data,
-      calls: data.calls.map(call => this.transformCallResponse(call))
-    }
+    return data
   }
 
   static async getCallMetrics(
@@ -121,21 +117,4 @@ export class CallAPI {
     return response.json()
   }
 
-  private static transformCallResponse(data: CallHistoryResponse): InteractionAttempt {
-    return {
-      id: data.id,
-      lead_id: data.lead_id,
-      agent_id: data.agent_id,
-      attempt_number: 1, // Backend doesn't provide this, could be calculated
-      status: data.status,
-      outcome: data.outcome,
-      summary: data.summary,
-      duration_seconds: data.duration_seconds,
-      transcript_url: data.transcript_url,
-      raw_webhook_data: {}, // Backend stores this separately
-      retell_call_id: '', // Backend doesn't expose this
-      created_at: data.created_at,
-      updated_at: data.created_at // Use created_at as updated_at
-    }
-  }
 }

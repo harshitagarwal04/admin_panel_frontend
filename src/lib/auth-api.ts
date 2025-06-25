@@ -113,9 +113,9 @@ export class AuthAPI {
       id: data.id,
       email: data.email,
       name: data.name || '',
-      phone: data.phone,
+      phone: data.phone || undefined,
       google_id: '', // Not provided by backend
-      company_id,
+      company_id: company_id || undefined,
       created_at: '',
       updated_at: ''
     }
