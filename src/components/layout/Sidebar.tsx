@@ -37,7 +37,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col bg-gray-900">
       <div className="flex h-16 shrink-0 items-center px-6">
-        <h1 className="text-white text-xl font-bold">Voice AI Admin</h1>
+        <h1 className="text-white text-xl font-bold">ConversAI Labs</h1>
       </div>
       
       <nav className="flex-1 space-y-1 px-3 py-4">

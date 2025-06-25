@@ -52,7 +52,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-center text-3xl font-bold text-gray-900">
-          Voice AI Admin Panel
+          ConversAI Labs Admin Panel
         </h1>
         <h2 className="mt-6 text-center text-2xl font-medium text-gray-900">
           Sign in to your account
@@ -145,8 +145,8 @@ export default function LoginPage() {
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
             Need help? Contact support at{' '}
-            <a href="mailto:support@voiceai.com" className="text-primary-600 hover:text-primary-500">
-              support@voiceai.com
+            <a href="mailto:support@conversailabs.com" className="text-primary-600 hover:text-primary-500">
+              support@conversailabs.com
             </a>
           </p>
         </div>
