@@ -35,6 +35,8 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
           callback: handleCredentialResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
+          ux_mode: 'popup',
+          redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URI || window.location.origin,
         })
 
         if (buttonRef.current) {
