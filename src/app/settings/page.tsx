@@ -191,7 +191,7 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                     <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                      {user?.company_id || 'My Company'}
+                      {user?.company_id || 'ConversAI Labs'}
                     </div>
                   </div>
                   <div>
