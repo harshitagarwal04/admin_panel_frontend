@@ -83,7 +83,7 @@ export function NumberBrowser({ isOpen, onClose, onNumberPurchased, providers }:
   const getCapabilityIcons = (capabilities: string[]) => {
     return capabilities.map(cap => {
       switch (cap) {
-        case 'voice': return <Phone key={cap} className="h-3 w-3 text-green-600" title="Voice" />
+        case 'voice': return <span key={cap} title="Voice"><Phone className="h-3 w-3 text-green-600" /></span>
         case 'sms': return <span key={cap} className="text-xs font-bold text-blue-600" title="SMS">SMS</span>
         case 'mms': return <span key={cap} className="text-xs font-bold text-purple-600" title="MMS">MMS</span>
         default: return null
@@ -94,11 +94,11 @@ export function NumberBrowser({ isOpen, onClose, onNumberPurchased, providers }:
   const getNumberTypeIcon = (type: string) => {
     switch (type) {
       case 'toll-free':
-        return <Star className="h-3 w-3 text-yellow-500" title="Toll-free" />
+        return <span title="Toll-free"><Star className="h-3 w-3 text-yellow-500" /></span>
       case 'local':
-        return <Phone className="h-3 w-3 text-blue-500" title="Local" />
+        return <span title="Local"><Phone className="h-3 w-3 text-blue-500" /></span>
       case 'mobile':
-        return <Phone className="h-3 w-3 text-green-500" title="Mobile" />
+        return <span title="Mobile"><Phone className="h-3 w-3 text-green-500" /></span>
       default:
         return null
     }
