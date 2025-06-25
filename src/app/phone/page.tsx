@@ -85,7 +85,7 @@ export default function PhonePage() {
   const getCapabilityIcons = (capabilities: string[]) => {
     return capabilities.map(cap => {
       switch (cap) {
-        case 'voice': return <Phone key={cap} className="h-3 w-3" title="Voice" />
+        case 'voice': return <span key={cap} title="Voice"><Phone className="h-3 w-3" /></span>
         case 'sms': return <span key={cap} className="text-xs font-bold" title="SMS">SMS</span>
         case 'mms': return <span key={cap} className="text-xs font-bold" title="MMS">MMS</span>
         default: return null
