@@ -16,6 +16,7 @@ export interface Company {
   max_concurrent_calls: number
   total_minutes_limit?: number
   total_minutes_used: number
+  max_contact_attempts: number // New field for max attempts limit
   settings: Record<string, any>
   created_at: string
   updated_at: string
@@ -41,6 +42,16 @@ export interface Agent {
   max_call_duration_minutes: number
   retell_agent_id?: string
   retell_llm_id?: string
+  // WhatsApp configuration
+  channels?: ('voice' | 'whatsapp')[]
+  whatsapp_config?: {
+    phone_number?: string
+    business_account_id?: string
+    webhook_url?: string
+    template_ids?: string[]
+    auto_reply_enabled?: boolean
+    handoff_enabled?: boolean
+  }
   created_at: string
   updated_at: string
 }

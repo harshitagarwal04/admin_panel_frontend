@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Agent, Template, Voice } from '@/types'
+import { Agent, Template, Voice, Company } from '@/types'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { AgentAPI } from '@/lib/agent-api'
 import { TemplateAPI, TemplateResponse } from '@/lib/template-api'
+import { whatsappStore } from '@/lib/whatsapp-frontend-store'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface AgentWizardProps {
@@ -24,6 +25,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateResponse | null>(null)
   const [templates, setTemplates] = useState<TemplateResponse[]>([])
   const [voices, setVoices] = useState<Voice[]>([])
+  const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { tokens } = useAuth()
@@ -33,8 +35,16 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     prompt: '',
     welcome_message: '',
     voice_id: '',
+    channels: ['voice'] as ('voice' | 'whatsapp')[],
+    contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
+    call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
+    custom_schedule_days: [1, 3, 7] as number[],
+    daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
     inbound_phone: '',
     outbound_phone: '',
+    whatsapp_phone: '',
+    whatsapp_auto_reply: true,
+    whatsapp_handoff: false,
     max_attempts: 3,
     retry_delay_minutes: 30,
     business_hours_start: '09:00',
@@ -45,13 +55,24 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   // Initialize form data when editing
   useEffect(() => {
     if (editingAgent) {
+      // Get WhatsApp config from frontend store (if any)
+      const whatsappConfig = whatsappStore.getAgentWhatsAppConfig(editingAgent.id)
+      
       setFormData({
         name: editingAgent.name,
         prompt: editingAgent.prompt,
         welcome_message: editingAgent.welcome_message,
         voice_id: editingAgent.voice_id || '',
+        channels: whatsappConfig?.channels || ['voice'] as ('voice' | 'whatsapp')[],
+        contact_strategy: whatsappConfig?.contact_strategy || 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
+        call_schedule: whatsappConfig?.call_schedule || 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
+        custom_schedule_days: whatsappConfig?.custom_schedule_days || [1, 3, 7],
+        daily_call_times: whatsappConfig?.daily_call_times || ['morning', 'afternoon'],
         inbound_phone: editingAgent.inbound_phone || '',
         outbound_phone: editingAgent.outbound_phone || '',
+        whatsapp_phone: whatsappConfig?.whatsapp_config?.phone_number || '',
+        whatsapp_auto_reply: whatsappConfig?.whatsapp_config?.auto_reply_enabled ?? true,
+        whatsapp_handoff: whatsappConfig?.whatsapp_config?.handoff_enabled ?? false,
         max_attempts: editingAgent.max_attempts,
         retry_delay_minutes: editingAgent.retry_delay_minutes,
         business_hours_start: editingAgent.business_hours_start,
@@ -61,11 +82,12 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     }
   }, [editingAgent])
 
-  // Fetch voices and templates when wizard opens
+  // Fetch voices, templates, and company data when wizard opens
   useEffect(() => {
     if (isOpen && tokens?.access_token) {
       fetchVoices()
       fetchTemplates()
+      fetchCompanyData()
     }
   }, [isOpen, tokens])
 
@@ -95,6 +117,30 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     }
   }
 
+  const fetchCompanyData = async () => {
+    if (!tokens?.access_token) return
+
+    try {
+      // This would be a real API call to get company data
+      // For now, using mock data
+      const mockCompany: Company = {
+        id: '1',
+        name: 'ConversAI Labs',
+        admin_user_id: '1',
+        max_agents_limit: 10,
+        max_concurrent_calls: 5,
+        total_minutes_used: 0,
+        max_contact_attempts: 6, // Company limit for contact attempts
+        settings: {},
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z'
+      }
+      setCompany(mockCompany)
+    } catch (error) {
+      console.error('Failed to fetch company data:', error)
+    }
+  }
+
   const handleTemplateSelect = (template: TemplateResponse) => {
     setSelectedTemplate(template)
     setFormData(prev => ({
@@ -111,7 +157,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   }
 
   const handleNext = () => {
-    if (currentStep < 4) {
+    if (currentStep < 5) {
       setCurrentStep(currentStep + 1)
     }
   }
@@ -125,10 +171,30 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   const handleComplete = async () => {
     if (!tokens?.access_token) return
 
+    // Validate against company limits
+    const maxAllowed = company?.max_contact_attempts || 6
+    let totalAttempts = 0
+    
+    if (formData.call_schedule === 'custom') {
+      totalAttempts = formData.custom_schedule_days.length * formData.daily_call_times.length
+    } else if (formData.call_schedule === 'realistic') {
+      totalAttempts = 5
+    } else if (formData.call_schedule === 'aggressive') {
+      totalAttempts = 7
+    } else if (formData.call_schedule === 'gentle') {
+      totalAttempts = 3
+    }
+    
+    if (totalAttempts > maxAllowed) {
+      setError(`Selected schedule (${totalAttempts} attempts) exceeds company limit of ${maxAllowed} attempts. Please choose a different schedule or contact your administrator to increase the limit.`)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
+      // Only include voice AI fields for backend - WhatsApp is frontend-only
       const agentData = {
         name: formData.name,
         prompt: formData.prompt,
@@ -158,7 +224,39 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
         resultAgent = await AgentAPI.createAgent(agentData, tokens.access_token)
       }
       
-      onComplete(resultAgent)
+      // Save WhatsApp config to frontend store (not sent to backend)
+      whatsappStore.saveAgentWhatsAppConfig({
+        agentId: resultAgent.id,
+        channels: formData.channels,
+        whatsapp_config: formData.channels.includes('whatsapp') ? {
+          phone_number: formData.whatsapp_phone || undefined,
+          auto_reply_enabled: formData.whatsapp_auto_reply,
+          handoff_enabled: formData.whatsapp_handoff,
+          template_ids: [],
+          business_account_id: undefined,
+          webhook_url: undefined
+        } : undefined,
+        contact_strategy: formData.contact_strategy,
+        call_schedule: formData.call_schedule,
+        custom_schedule_days: formData.custom_schedule_days,
+        daily_call_times: formData.daily_call_times
+      })
+
+      // Add frontend-only WhatsApp data for display purposes
+      const agentWithWhatsApp = {
+        ...resultAgent,
+        channels: formData.channels,
+        whatsapp_config: formData.channels.includes('whatsapp') ? {
+          phone_number: formData.whatsapp_phone || undefined,
+          auto_reply_enabled: formData.whatsapp_auto_reply,
+          handoff_enabled: formData.whatsapp_handoff,
+          template_ids: [],
+          business_account_id: undefined,
+          webhook_url: undefined
+        } : undefined
+      }
+      
+      onComplete(agentWithWhatsApp)
       
       // Reset form
       setCurrentStep(1)
@@ -168,8 +266,16 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
         prompt: '',
         welcome_message: '',
         voice_id: voices.length > 0 ? voices[0].id : '',
+        channels: ['voice'] as ('voice' | 'whatsapp')[],
+        contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
+        call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
+        custom_schedule_days: [1, 3, 7],
+        daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
         inbound_phone: '',
         outbound_phone: '',
+        whatsapp_phone: '',
+        whatsapp_auto_reply: true,
+        whatsapp_handoff: false,
         max_attempts: 3,
         retry_delay_minutes: 30,
         business_hours_start: '09:00',
@@ -316,40 +422,387 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       case 4:
         return (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Call Configuration & Phone Setup</h3>
+            <h3 className="text-lg font-medium">Channels & Configuration</h3>
             
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Inbound Phone (Optional)"
-                value={formData.inbound_phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, inbound_phone: e.target.value }))}
-                placeholder="+1234567890"
-              />
-              <Input
-                label="Outbound Phone (Optional)"
-                value={formData.outbound_phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, outbound_phone: e.target.value }))}
-                placeholder="+1234567890"
-              />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Select Communication Channels
+              </label>
+              <div className="space-y-3">
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={formData.channels.includes('voice')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          channels: [...prev.channels.filter(c => c !== 'voice'), 'voice']
+                        }))
+                      } else {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          channels: prev.channels.filter(c => c !== 'voice')
+                        }))
+                      }
+                    }}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">Voice Calls</div>
+                    <div className="text-sm text-gray-600">Traditional phone calls with AI agent</div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={formData.channels.includes('whatsapp')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          channels: [...prev.channels.filter(c => c !== 'whatsapp'), 'whatsapp']
+                        }))
+                      } else {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          channels: prev.channels.filter(c => c !== 'whatsapp')
+                        }))
+                      }
+                    }}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">WhatsApp Business</div>
+                    <div className="text-sm text-gray-600">WhatsApp messaging with AI agent</div>
+                  </div>
+                </label>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Max Attempts"
-                type="number"
-                min="1"
-                max="10"
-                value={formData.max_attempts}
-                onChange={(e) => setFormData(prev => ({ ...prev, max_attempts: parseInt(e.target.value) }))}
-              />
-              <Input
-                label="Retry Delay (minutes)"
-                type="number"
-                min="15"
-                max="480"
-                value={formData.retry_delay_minutes}
-                onChange={(e) => setFormData(prev => ({ ...prev, retry_delay_minutes: parseInt(e.target.value) }))}
-              />
+            {formData.channels.includes('voice') && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Voice Configuration</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Inbound Phone (Optional)"
+                    value={formData.inbound_phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, inbound_phone: e.target.value }))}
+                    placeholder="+1234567890"
+                  />
+                  <Input
+                    label="Outbound Phone (Optional)"
+                    value={formData.outbound_phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, outbound_phone: e.target.value }))}
+                    placeholder="+1234567890"
+                  />
+                </div>
+              </div>
+            )}
+
+            {formData.channels.includes('whatsapp') && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">WhatsApp Configuration</h4>
+                <div className="space-y-4">
+                  <Input
+                    label="WhatsApp Phone Number"
+                    value={formData.whatsapp_phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, whatsapp_phone: e.target.value }))}
+                    placeholder="+1234567890"
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.whatsapp_auto_reply}
+                        onChange={(e) => setFormData(prev => ({ ...prev, whatsapp_auto_reply: e.target.checked }))}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Auto-reply enabled</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.whatsapp_handoff}
+                        onChange={(e) => setFormData(prev => ({ ...prev, whatsapp_handoff: e.target.checked }))}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Human handoff enabled</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {formData.channels.includes('voice') && formData.channels.includes('whatsapp') && (
+              <div>
+                <h4 className="font-medium text-gray-900 mb-3">Contact Strategy</h4>
+                <div className="space-y-3">
+                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="contact_strategy"
+                      value="call_first"
+                      checked={formData.contact_strategy === 'call_first'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contact_strategy: e.target.value as any }))}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                    />
+                    <div className="ml-3">
+                      <div className="font-medium">📞 Call First (Default)</div>
+                      <div className="text-sm text-gray-600">
+                        Try calling first → If no answer, send WhatsApp message
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">Each call + WhatsApp = 1 attempt</div>
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="contact_strategy"
+                      value="whatsapp_first"
+                      checked={formData.contact_strategy === 'whatsapp_first'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contact_strategy: e.target.value as any }))}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                    />
+                    <div className="ml-3">
+                      <div className="font-medium">💬 WhatsApp First</div>
+                      <div className="text-sm text-gray-600">
+                        Send WhatsApp first → If no response, try calling
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">Each WhatsApp + call = 1 attempt</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">Calling Schedule</h4>
+              {company && (
+                <div className="bg-yellow-50 p-3 rounded-lg mb-4">
+                  <div className="text-sm text-yellow-800">
+                    <strong>Company Limit:</strong> Maximum {company.max_contact_attempts} contact attempts per lead
+                  </div>
+                </div>
+              )}
+              <div className="space-y-3">
+                <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="call_schedule"
+                    value="realistic"
+                    checked={formData.call_schedule === 'realistic'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, call_schedule: e.target.value as any }))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">📅 Realistic Schedule (Recommended)</div>
+                    <div className="text-sm text-gray-600 space-y-1 mt-1">
+                      <div><strong>Day 1:</strong> Morning & Afternoon</div>
+                      <div><strong>Day 3:</strong> Morning</div>
+                      <div><strong>Day 7:</strong> Afternoon</div>
+                      <div><strong>Day 14:</strong> Morning</div>
+                    </div>
+                    <div className={`text-xs mt-1 ${
+                      5 > (company?.max_contact_attempts || 6) ? 'text-red-600 font-medium' : 'text-gray-500'
+                    }`}>
+                      Total: 5 attempts over 2 weeks
+                      {5 > (company?.max_contact_attempts || 6) && ' ⚠️ Exceeds limit'}
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="call_schedule"
+                    value="aggressive"
+                    checked={formData.call_schedule === 'aggressive'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, call_schedule: e.target.value as any }))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">⚡ Aggressive Schedule</div>
+                    <div className="text-sm text-gray-600 space-y-1 mt-1">
+                      <div><strong>Day 1:</strong> Morning, Afternoon & Evening</div>
+                      <div><strong>Day 2:</strong> Morning & Afternoon</div>
+                      <div><strong>Day 4:</strong> Evening</div>
+                      <div><strong>Day 7:</strong> Morning</div>
+                    </div>
+                    <div className={`text-xs mt-1 ${
+                      7 > (company?.max_contact_attempts || 6) ? 'text-red-600 font-medium' : 'text-gray-500'
+                    }`}>
+                      Total: 7 attempts over 1 week
+                      {7 > (company?.max_contact_attempts || 6) && ' ⚠️ Exceeds limit'}
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="call_schedule"
+                    value="gentle"
+                    checked={formData.call_schedule === 'gentle'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, call_schedule: e.target.value as any }))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">🕊️ Gentle Schedule</div>
+                    <div className="text-sm text-gray-600 space-y-1 mt-1">
+                      <div><strong>Day 1:</strong> Morning</div>
+                      <div><strong>Day 5:</strong> Afternoon</div>
+                      <div><strong>Day 14:</strong> Morning</div>
+                    </div>
+                    <div className={`text-xs mt-1 ${
+                      3 > (company?.max_contact_attempts || 6) ? 'text-red-600 font-medium' : 'text-gray-500'
+                    }`}>
+                      Total: 3 attempts over 2 weeks
+                      {3 > (company?.max_contact_attempts || 6) && ' ⚠️ Exceeds limit'}
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="radio"
+                    name="call_schedule"
+                    value="custom"
+                    checked={formData.call_schedule === 'custom'}
+                    onChange={(e) => setFormData(prev => ({ ...prev, call_schedule: e.target.value as any }))}
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 mt-0.5"
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium">⚙️ Custom Schedule</div>
+                    <div className="text-sm text-gray-600">
+                      Set your own days and times
+                    </div>
+                  </div>
+                </label>
+              </div>
+              
+              {formData.call_schedule === 'custom' && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Contact Days (when to make attempts)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {[1, 2, 3, 4, 5, 7, 10, 14, 21, 30].map((day) => (
+                        <label key={day} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.custom_schedule_days.includes(day)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  custom_schedule_days: [...prev.custom_schedule_days, day].sort((a, b) => a - b)
+                                }))
+                              } else {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  custom_schedule_days: prev.custom_schedule_days.filter(d => d !== day)
+                                }))
+                              }
+                            }}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-1"
+                          />
+                          <span className="text-sm">Day {day}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Day 1 = first contact day. Select when to make follow-up attempts.
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Call Times (when during the day)
+                    </label>
+                    <div className="space-y-2">
+                      {(['morning', 'afternoon', 'evening'] as const).map((time) => (
+                        <label key={time} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.daily_call_times.includes(time)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  daily_call_times: [...prev.daily_call_times, time]
+                                }))
+                              } else {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  daily_call_times: prev.daily_call_times.filter(t => t !== time)
+                                }))
+                              }
+                            }}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-2"
+                          />
+                          <span className="text-sm capitalize">{time}</span>
+                          <span className="text-xs text-gray-500 ml-2">
+                            {time === 'morning' && '(9AM - 12PM)'}
+                            {time === 'afternoon' && '(12PM - 5PM)'}
+                            {time === 'evening' && '(5PM - 8PM)'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      On each contact day, calls will be made at selected times.
+                    </p>
+                  </div>
+                  
+                  {formData.custom_schedule_days.length > 0 && formData.daily_call_times.length > 0 && (
+                    <div className={`p-3 rounded border ${
+                      (formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6)
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-blue-50 border-blue-200'
+                    }`}>
+                      <div className={`text-sm font-medium mb-1 ${
+                        (formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6)
+                          ? 'text-red-800'
+                          : 'text-blue-800'
+                      }`}>
+                        {(formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6)
+                          ? '⚠️ Exceeds Company Limit'
+                          : 'Your Schedule Preview:'
+                        }
+                      </div>
+                      <div className={`text-xs space-y-1 ${
+                        (formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6)
+                          ? 'text-red-700'
+                          : 'text-blue-700'
+                      }`}>
+                        {formData.custom_schedule_days.map(day => (
+                          <div key={day}>
+                            <strong>Day {day}:</strong> {formData.daily_call_times.join(', ')} 
+                            ({formData.daily_call_times.length} attempt{formData.daily_call_times.length > 1 ? 's' : ''})
+                          </div>
+                        ))}
+                        <div className={`border-t pt-1 mt-2 ${
+                          (formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6)
+                            ? 'border-red-200'
+                            : 'border-blue-200'
+                        }`}>
+                          <strong>Total:</strong> {formData.custom_schedule_days.length * formData.daily_call_times.length} attempts 
+                          over {Math.max(...formData.custom_schedule_days)} days
+                          {(formData.custom_schedule_days.length * formData.daily_call_times.length) > (company?.max_contact_attempts || 6) && (
+                            <div className="mt-1 font-medium">
+                              Company limit: {company?.max_contact_attempts || 6} attempts maximum
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -378,6 +831,149 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
           </div>
         )
 
+      case 5:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Templates & Sync Configuration</h3>
+            
+            {formData.channels.includes('whatsapp') && (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">WhatsApp Templates</h4>
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-3">
+                      Select message templates for automated WhatsApp responses
+                    </p>
+                    <div className="space-y-2">
+                      <label className="flex items-center p-3 border rounded-lg bg-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          defaultChecked
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <div className="ml-3">
+                          <div className="font-medium">Welcome Message</div>
+                          <div className="text-sm text-gray-600">Hi {"{{name}}"} Thanks for reaching out via WhatsApp.</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-center p-3 border rounded-lg bg-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          defaultChecked
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <div className="ml-3">
+                          <div className="font-medium">Handoff to Voice</div>
+                          <div className="text-sm text-gray-600">Would you like me to call you instead? It might be easier to discuss over the phone.</div>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-center p-3 border rounded-lg bg-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <div className="ml-3">
+                          <div className="font-medium">Follow-up Message</div>
+                          <div className="text-sm text-gray-600">Hi {"{{name}}"}, just following up on our conversation...</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {formData.channels.includes('voice') && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Voice & WhatsApp Sync</h4>
+                    <div className="bg-green-50 p-4 rounded-lg space-y-3">
+                      <p className="text-sm text-green-800 font-medium">
+                        🔄 Multi-Channel Sync Enabled
+                      </p>
+                      <div className="text-sm text-green-700 space-y-2">
+                        <div className="font-medium text-green-800">Your selected strategy: 
+                          {formData.contact_strategy === 'call_first' && " 📞 Call First"}
+                          {formData.contact_strategy === 'whatsapp_first' && " 💬 WhatsApp First"}
+                        </div>
+                        
+                        <div className="bg-white p-3 rounded border">
+                          <div className="text-sm text-gray-700 space-y-2">
+                            <div className="font-medium">Contact Strategy:</div>
+                            {formData.contact_strategy === 'call_first' ? (
+                              <div>Each attempt: Call → If no answer, send WhatsApp</div>
+                            ) : (
+                              <div>Each attempt: WhatsApp → If no response, call</div>
+                            )}
+                            
+                            <div className="font-medium pt-2 border-t">Calling Schedule:</div>
+                            {formData.call_schedule === 'realistic' && (
+                              <div>
+                                <div>Day 1: Morning & Afternoon • Day 3: Morning</div>
+                                <div>Day 7: Afternoon • Day 14: Morning</div>
+                              </div>
+                            )}
+                            {formData.call_schedule === 'aggressive' && (
+                              <div>
+                                <div>Day 1: Morning, Afternoon & Evening</div>
+                                <div>Day 2: Morning & Afternoon • Day 4: Evening • Day 7: Morning</div>
+                              </div>
+                            )}
+                            {formData.call_schedule === 'gentle' && (
+                              <div>
+                                <div>Day 1: Morning • Day 5: Afternoon</div>
+                                <div>Day 14: Morning</div>
+                              </div>
+                            )}
+                            {formData.call_schedule === 'custom' && (
+                              <div>
+                                {formData.custom_schedule_days.map(day => (
+                                  <div key={day}>
+                                    Day {day}: {formData.daily_call_times.join(', ')}
+                                  </div>
+                                ))}
+                                <div className="text-xs mt-1">
+                                  Total: {formData.custom_schedule_days.length * formData.daily_call_times.length} attempts
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="text-xs text-green-600">
+                          ✓ Customer can respond via either channel anytime<br/>
+                          ✓ Agent can suggest switching channels during conversation<br/>
+                          ✓ All interactions logged in unified conversation history
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 p-3 bg-white rounded border">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={formData.whatsapp_handoff}
+                            onChange={(e) => setFormData(prev => ({ ...prev, whatsapp_handoff: e.target.checked }))}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <span className="ml-2 text-sm font-medium">Enable automatic handoff suggestions</span>
+                        </label>
+                        <p className="text-xs text-gray-600 mt-1 ml-6">
+                          Agent will automatically suggest switching to voice calls for complex queries
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!formData.channels.includes('whatsapp') && (
+              <div className="bg-gray-50 p-4 rounded-lg text-center">
+                <p className="text-gray-600">Enable WhatsApp channel to configure templates and sync settings</p>
+              </div>
+            )}
+          </div>
+        )
+
       default:
         return null
     }
@@ -388,7 +984,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex space-x-2">
-            {[1, 2, 3, 4].map((step) => (
+            {[1, 2, 3, 4, 5].map((step) => (
               <div
                 key={step}
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
@@ -402,7 +998,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
             ))}
           </div>
           <span className="text-sm text-gray-600">
-            Step {currentStep} of 4
+            Step {currentStep} of 5
           </span>
         </div>
 
@@ -424,7 +1020,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
             Previous
           </Button>
           
-          {currentStep === 4 ? (
+          {currentStep === 5 ? (
             <Button onClick={handleComplete} disabled={loading}>
               {loading 
                 ? (editingAgent ? 'Updating...' : 'Creating...') 

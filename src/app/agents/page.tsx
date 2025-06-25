@@ -6,9 +6,11 @@ import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Agent } from '@/types'
-import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal } from 'lucide-react'
+import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { AgentWizard } from '@/components/agents/AgentWizard'
+import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { AgentAPI } from '@/lib/agent-api'
+import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
 import { useAuth } from '@/contexts/AuthContext'
 
 const mockAgents: Agent[] = [
@@ -22,8 +24,14 @@ const mockAgents: Agent[] = [
     welcome_message: 'Hello! I\'m calling from HealthCare Corp...',
     voice_id: 'us-english-female',
     functions: ['check_calendar_availability', 'book_on_calendar', 'end_call'],
+    channels: ['voice', 'whatsapp'],
     inbound_phone: '+1234567890',
     outbound_phone: '+1234567890',
+    whatsapp_config: {
+      phone_number: '+1234567890',
+      auto_reply_enabled: true,
+      handoff_enabled: false
+    },
     max_attempts: 5,
     retry_delay_minutes: 60,
     business_hours_start: '09:00',
@@ -43,6 +51,7 @@ const mockAgents: Agent[] = [
     welcome_message: 'Hi! This is from Real Estate Pro...',
     voice_id: 'us-english-male',
     functions: ['check_calendar_availability', 'book_on_calendar', 'transfer_call'],
+    channels: ['voice'],
     outbound_phone: '+1234567891',
     max_attempts: 4,
     retry_delay_minutes: 45,
@@ -60,6 +69,8 @@ export default function AgentsPage() {
   const [voices, setVoices] = useState<Record<string, string>>({}) // voice_id -> voice_name mapping
   const [showWizard, setShowWizard] = useState(false)
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
+  const [showWhatsAppConversations, setShowWhatsAppConversations] = useState(false)
+  const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { tokens } = useAuth()
@@ -74,7 +85,9 @@ export default function AgentsPage() {
         AgentAPI.getVoices(tokens.access_token)
       ])
       
-      setAgents(agentsResponse.agents)
+      // Enhance agents with frontend WhatsApp data
+      const enhancedAgents = agentsResponse.agents.map(enhanceAgentWithWhatsApp)
+      setAgents(enhancedAgents)
       
       // Create voice mapping
       const voiceMap = voicesResponse.reduce((acc, voice) => {
@@ -126,6 +139,11 @@ export default function AgentsPage() {
 
   const handleEditAgent = (agent: Agent) => {
     setEditingAgent(agent)
+  }
+
+  const handleOpenWhatsAppConversations = (agent: Agent) => {
+    setSelectedAgentForWhatsApp(agent)
+    setShowWhatsAppConversations(true)
   }
 
   return (
@@ -190,6 +208,18 @@ export default function AgentsPage() {
                       <div className={`w-3 h-3 rounded-full ${agent.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
                       <div>
                         <div className="font-medium text-gray-900">{agent.name}</div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          {agent.channels?.includes('voice') && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Voice
+                            </span>
+                          )}
+                          {agent.channels?.includes('whatsapp') && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              WhatsApp
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </TableCell>
@@ -233,10 +263,20 @@ export default function AgentsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="py-4">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end space-x-1">
+                      {agent.channels?.includes('whatsapp') && (
+                        <button 
+                          onClick={() => handleOpenWhatsAppConversations(agent)}
+                          className="p-1 text-gray-400 hover:text-green-600"
+                          title="WhatsApp Conversations"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </button>
+                      )}
                       <button 
                         onClick={() => handleEditAgent(agent)}
                         className="p-1 text-gray-400 hover:text-gray-600"
+                        title="Edit Agent"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
@@ -262,6 +302,18 @@ export default function AgentsPage() {
           onClose={() => setEditingAgent(null)}
           onComplete={handleAgentUpdated}
           editingAgent={editingAgent}
+        />
+      )}
+
+      {selectedAgentForWhatsApp && (
+        <WhatsAppConversations
+          isOpen={showWhatsAppConversations}
+          onClose={() => {
+            setShowWhatsAppConversations(false)
+            setSelectedAgentForWhatsApp(null)
+          }}
+          agentId={selectedAgentForWhatsApp.id}
+          agentName={selectedAgentForWhatsApp.name}
         />
       )}
       </Layout>
