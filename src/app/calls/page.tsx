@@ -54,9 +54,19 @@ export default function CallsPage() {
   })
   const { tokens } = useAuth()
 
-  // Fetch data
+  // Fetch data and sync call history on mount or when tokens change
   useEffect(() => {
-    fetchData()
+    const syncAndFetch = async () => {
+      if (!tokens?.access_token) return
+      try {
+        await CallAPI.syncCallHistory(tokens.access_token)
+      } catch (error) {
+        // Optionally handle sync error, but continue to fetch data
+      }
+      fetchData()
+    }
+    syncAndFetch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens])
 
   const fetchData = async () => {

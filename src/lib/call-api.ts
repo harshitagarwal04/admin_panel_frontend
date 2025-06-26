@@ -131,4 +131,18 @@ export class CallAPI {
     return response.json()
   }
 
+  static async syncCallHistory(accessToken: string): Promise<{ message: string }> {
+    const response = await fetch(`${API_BASE_URL}/calls/sync-call-history`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to sync call history')
+    }
+
+    return response.json()
+  }
+
 }
