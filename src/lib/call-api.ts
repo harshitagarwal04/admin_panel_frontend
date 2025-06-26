@@ -1,4 +1,3 @@
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
 
 interface CallHistoryResponse {
@@ -112,6 +111,21 @@ export class CallAPI {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.detail || 'Failed to schedule call')
+    }
+
+    return response.json()
+  }
+
+  static async callNow(leadId: string, accessToken: string): Promise<{ message: string }> {
+    const response = await fetch(`${API_BASE_URL}/calls/call-now`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify({ lead_id: leadId }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to initiate call now')
     }
 
     return response.json()

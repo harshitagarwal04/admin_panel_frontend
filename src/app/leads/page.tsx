@@ -12,6 +12,7 @@ import { CSVImport } from '@/components/leads/CSVImport'
 import { LeadAPI } from '@/lib/lead-api'
 import { AgentAPI } from '@/lib/agent-api'
 import { useAuth } from '@/contexts/AuthContext'
+import { CallAPI } from '@/lib/call-api'
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
@@ -106,6 +107,17 @@ export default function LeadsPage() {
       fetchData()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to schedule call')
+    }
+  }
+
+  const handleCallNow = async (leadId: string) => {
+    if (!tokens?.access_token) return
+    try {
+      await CallAPI.callNow(leadId, tokens.access_token)
+      // Optionally refresh leads or show a toast/notification
+      fetchData()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to initiate call')
     }
   }
 
@@ -307,14 +319,24 @@ export default function LeadsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleScheduleCall(lead.id)}
-                      disabled={lead.status === 'done'}
-                    >
-                      {lead.status === 'done' ? 'Completed' : 'Schedule Now'}
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleScheduleCall(lead.id)}
+                        disabled={lead.status === 'done'}
+                      >
+                        {lead.status === 'done' ? 'Completed' : 'Schedule Now'}
+                      </Button>
+                      <Button
+                        variant="dark"
+                        size="sm"
+                        onClick={() => handleCallNow(lead.id)}
+                        disabled={lead.status === 'done'}
+                      >
+                        Call Now
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
