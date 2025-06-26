@@ -33,7 +33,7 @@ export default function LoginPage() {
 
     setIsLoading(true)
     try {
-      const hasCompany = await login(email)
+      const hasCompany = await login(email, 'dev')
       if (hasCompany) {
         router.push('/agents')
       } else {
@@ -81,8 +81,18 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-4">
+                Sign in with Google
+              </label>
+              <GoogleLoginButton
+                onSuccess={handleLoginSuccess}
+                onError={handleLoginError}
+              />
+            </div>
+
             {process.env.NODE_ENV === 'development' && (
-              <div>
+              <div className="pt-6 border-t border-gray-200 mt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Development Login
                 </label>
@@ -102,18 +112,6 @@ export default function LoginPage() {
                     {isLoading ? 'Signing in...' : 'Sign in with Email'}
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {process.env.NODE_ENV !== 'development' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Sign in with Google
-                </label>
-                <GoogleLoginButton
-                  onSuccess={handleLoginSuccess}
-                  onError={handleLoginError}
-                />
               </div>
             )}
 
