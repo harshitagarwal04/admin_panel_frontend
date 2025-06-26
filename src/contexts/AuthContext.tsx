@@ -7,7 +7,7 @@ import { AuthStorage } from '@/lib/auth-storage'
 import { AuthAPI } from '@/lib/auth-api'
 
 interface AuthContextType extends AuthState {
-  login: (credential: string) => Promise<boolean>
+  login: (credential: string, type?: 'google' | 'dev') => Promise<boolean>
   logout: () => Promise<void>
   completeOnboarding: (data: OnboardingData) => Promise<void>
   refreshTokens: () => Promise<void>
@@ -111,37 +111,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return true
   }, [refreshTokens])
 
-  const login = useCallback(async (credential: string): Promise<boolean> => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }))
+  const login = useCallback(
+    async (credential: string, type: 'google' | 'dev' = 'google'): Promise<boolean> => {
+      setState(prev => ({ ...prev, isLoading: true, error: null }))
 
-    try {
-      // For development, use test login with email
-      // For production, use Google OAuth token
-      const tokens = process.env.NODE_ENV === 'development' 
-        ? await AuthAPI.testLogin(credential) // Use credential as email in dev
-        : await AuthAPI.googleLogin(credential)
-      
-      setTokens(tokens)
-      
-      // Get user info to check profile completion status
-      const user = await AuthAPI.getCurrentUser(tokens.access_token)
-      setUser(user)
-      
-      setState(prev => ({ 
-        ...prev, 
-        isLoading: false,
-        isAuthenticated: true 
-      }))
-
-      // Return true if onboarding is complete (has company)
-      const hasCompany = user.company_id !== null
-      console.log('Login result - user has company:', hasCompany, 'company_id:', user.company_id)
-      return hasCompany
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Login failed')
-      return false
-    }
-  }, [setTokens, setUser, setError])
+      try {
+        let tokens
+        if (type === 'dev') {
+          tokens = await AuthAPI.testLogin(credential)
+        } else {
+          tokens = await AuthAPI.googleLogin(credential)
+        }
+        setTokens(tokens)
+        // Get user info to check profile completion status
+        const user = await AuthAPI.getCurrentUser(tokens.access_token)
+        setUser(user)
+        setState(prev => ({ 
+          ...prev, 
+          isLoading: false,
+          isAuthenticated: true 
+        }))
+        // Return true if onboarding is complete (has company)
+        const hasCompany = user.company_id !== null
+        console.log('Login result - user has company:', hasCompany, 'company_id:', user.company_id)
+        return hasCompany
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Login failed')
+        return false
+      }
+    }, [setTokens, setUser, setError])
 
   const completeOnboarding = useCallback(async (data: OnboardingData) => {
     const tokens = AuthStorage.getTokens()
