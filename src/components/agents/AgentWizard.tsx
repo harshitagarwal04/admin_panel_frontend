@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Agent, Template, Voice, Company } from '@/types'
+import { Agent, Template, Company } from '@/types'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { AgentAPI } from '@/lib/agent-api'
-import { TemplateAPI, TemplateResponse } from '@/lib/template-api'
+import { TemplateResponse } from '@/lib/template-api'
 import { whatsappStore } from '@/lib/whatsapp-frontend-store'
+import { useVoices } from '@/hooks/useAgents'
+import { useTemplates } from '@/hooks/useTemplates'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface AgentWizardProps {
@@ -23,12 +24,26 @@ interface AgentWizardProps {
 export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: AgentWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateResponse | null>(null)
-  const [templates, setTemplates] = useState<TemplateResponse[]>([])
-  const [voices, setVoices] = useState<Voice[]>([])
+  const [selectedUseCase, setSelectedUseCase] = useState<string>('')
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
   const { tokens } = useAuth()
+  
+  // Use cached queries
+  const { data: voices, isLoading: voicesLoading } = useVoices()
+  const { data: templatesData, isLoading: templatesLoading } = useTemplates()
+  
+  const allTemplates = templatesData?.templates || []
+  
+  // Get unique use cases from templates
+  const useCases = Array.from(new Set(allTemplates.map(t => t.use_case))).sort()
+  
+  // Filter templates based on selected use case
+  const filteredTemplates = selectedUseCase 
+    ? allTemplates.filter(t => t.use_case === selectedUseCase)
+    : []
   
   const [formData, setFormData] = useState({
     name: '',
@@ -82,40 +97,19 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     }
   }, [editingAgent])
 
-  // Fetch voices, templates, and company data when wizard opens
+  // Fetch company data when wizard opens (voices and templates now cached)
   useEffect(() => {
-    if (isOpen && tokens?.access_token) {
-      fetchVoices()
-      fetchTemplates()
+    if (isOpen) {
       fetchCompanyData()
     }
-  }, [isOpen, tokens])
+  }, [isOpen])
 
-  const fetchVoices = async () => {
-    if (!tokens?.access_token) return
-
-    try {
-      const voicesData = await AgentAPI.getVoices(tokens.access_token)
-      setVoices(voicesData)
-      // Set default voice if available
-      if (voicesData.length > 0 && !formData.voice_id) {
-        setFormData(prev => ({ ...prev, voice_id: voicesData[0].id }))
-      }
-    } catch (error) {
-      console.error('Failed to fetch voices:', error)
+  // Set default voice when voices are loaded
+  useEffect(() => {
+    if (voices && voices.length > 0 && !formData.voice_id) {
+      setFormData(prev => ({ ...prev, voice_id: voices[0].id }))
     }
-  }
-
-  const fetchTemplates = async () => {
-    if (!tokens?.access_token) return
-
-    try {
-      const templatesData = await TemplateAPI.getAllTemplates(tokens.access_token)
-      setTemplates(templatesData.templates)
-    } catch (error) {
-      console.error('Failed to fetch templates:', error)
-    }
-  }
+  }, [voices, formData.voice_id])
 
   const fetchCompanyData = async () => {
     if (!tokens?.access_token) return
@@ -217,11 +211,11 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
 
       let resultAgent: Agent
       if (editingAgent) {
-        // Update existing agent
-        resultAgent = await AgentAPI.updateAgent(editingAgent.id, agentData, tokens.access_token)
+        // Update existing agent - will be handled by parent component via mutation
+        resultAgent = { ...editingAgent, ...agentData }
       } else {
-        // Create new agent
-        resultAgent = await AgentAPI.createAgent(agentData, tokens.access_token)
+        // Create new agent - will be handled by parent component via mutation
+        resultAgent = { ...agentData, id: Date.now().toString(), company_id: '1', status: 'active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Agent
       }
       
       // Save WhatsApp config to frontend store (not sent to backend)
@@ -258,21 +252,26 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       
       onComplete(agentWithWhatsApp)
       
-      // Reset form
-      setCurrentStep(1)
-      setSelectedTemplate(null)
-      setFormData({
-        name: '',
-        prompt: '',
-        welcome_message: '',
-        voice_id: voices.length > 0 ? voices[0].id : '',
-        channels: ['voice'] as ('voice' | 'whatsapp')[],
-        contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
-        call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
-        custom_schedule_days: [1, 3, 7],
-        daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
-        inbound_phone: '',
-        outbound_phone: '',
+      // Close the modal immediately after calling onComplete
+      onClose()
+      
+      // Reset form after a small delay to avoid UI flicker
+      setTimeout(() => {
+        setCurrentStep(1)
+        setSelectedTemplate(null)
+        setSelectedUseCase('')
+        setFormData({
+          name: '',
+          prompt: '',
+          welcome_message: '',
+          voice_id: voices && voices.length > 0 ? voices[0].id : '',
+          channels: ['voice'] as ('voice' | 'whatsapp')[],
+          contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
+          call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
+          custom_schedule_days: [1, 3, 7],
+          daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
+          inbound_phone: '',
+          outbound_phone: '',
         whatsapp_phone: '',
         whatsapp_auto_reply: true,
         whatsapp_handoff: false,
@@ -282,6 +281,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
         business_hours_end: '17:00',
         max_call_duration_minutes: 20
       })
+      }, 100) // Small delay to avoid UI flicker
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to save agent')
     } finally {
@@ -302,35 +302,70 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
               placeholder="Enter agent name"
             />
             {!editingAgent && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-700">
                   Choose a Template (Optional)
                 </label>
-                {templates.length === 0 ? (
-                  <div className="p-4 border rounded-lg text-center text-gray-500">
-                    Loading templates...
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
-                    {templates.map((template) => (
-                      <div
-                        key={template.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedTemplate?.id === template.id
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => handleTemplateSelect(template)}
-                      >
-                        <div className="font-medium">{template.name}</div>
-                        <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
-                        {template.suggested_settings.max_call_duration_minutes && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {template.suggested_settings.max_call_duration_minutes} min calls, {template.suggested_settings.max_attempts || 3} attempts
-                          </div>
-                        )}
-                      </div>
+                
+                {/* Use Case Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Use Case
+                  </label>
+                  <select
+                    value={selectedUseCase}
+                    onChange={(e) => {
+                      setSelectedUseCase(e.target.value)
+                      setSelectedTemplate(null) // Reset template selection
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">Select Use Case</option>
+                    {useCases.map((useCase) => (
+                      <option key={useCase} value={useCase}>
+                        {useCase}
+                      </option>
                     ))}
+                  </select>
+                </div>
+
+                {/* Templates List */}
+                {selectedUseCase && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2">
+                      Available Templates {filteredTemplates.length > 0 && `(${filteredTemplates.length})`}
+                    </label>
+                    {templatesLoading ? (
+                      <div className="p-4 border rounded-lg text-center text-gray-500">
+                        Loading templates...
+                      </div>
+                    ) : filteredTemplates.length === 0 ? (
+                      <div className="p-4 border rounded-lg text-center text-gray-500">
+                        No templates found for this selection
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
+                        {filteredTemplates.map((template) => (
+                          <div
+                            key={template.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                              selectedTemplate?.id === template.id
+                                ? 'border-primary-500 bg-primary-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => handleTemplateSelect(template)}
+                          >
+                            <div className="font-medium">{template.name}</div>
+                            <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
+                            {template.suggested_settings.max_call_duration_minutes && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {template.suggested_settings.max_call_duration_minutes} min calls, {template.suggested_settings.max_attempts || 3} attempts
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -382,13 +417,13 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Voice
               </label>
-              {voices.length === 0 ? (
+              {!voices || voices.length === 0 ? (
                 <div className="p-4 border rounded-lg text-center text-gray-500">
                   Loading voices...
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2">
-                  {voices.map((voice) => (
+                  {voices!.map((voice) => (
                     <label
                       key={voice.id}
                       className={`flex items-center p-3 border rounded-lg cursor-pointer ${
@@ -1021,14 +1056,14 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
           </Button>
           
           {currentStep === 5 ? (
-            <Button onClick={handleComplete} disabled={loading}>
-              {loading 
+            <Button onClick={handleComplete} disabled={loading || voicesLoading || templatesLoading}>
+              {(loading || voicesLoading || templatesLoading)
                 ? (editingAgent ? 'Updating...' : 'Creating...') 
                 : (editingAgent ? 'Update Agent' : 'Create Agent')
               }
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={loading}>
+            <Button onClick={handleNext} disabled={loading || voicesLoading || templatesLoading}>
               Next
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>

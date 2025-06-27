@@ -16,6 +16,7 @@ const mockCompany: Company = {
   max_concurrent_calls: 5,
   total_minutes_limit: 10000,
   total_minutes_used: 2450,
+  max_contact_attempts: 6,
   settings: {
     timezone: 'UTC',
     business_hours_start: '09:00',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
@@ -9,9 +9,8 @@ import { Agent } from '@/types'
 import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { AgentWizard } from '@/components/agents/AgentWizard'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
-import { AgentAPI } from '@/lib/agent-api'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAgents, useToggleAgentStatus, useCreateAgent, useUpdateAgent } from '@/hooks/useAgents'
 
 const mockAgents: Agent[] = [
   {
@@ -65,76 +64,46 @@ const mockAgents: Agent[] = [
 ]
 
 export default function AgentsPage() {
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [voices, setVoices] = useState<Record<string, string>>({}) // voice_id -> voice_name mapping
   const [showWizard, setShowWizard] = useState(false)
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [showWhatsAppConversations, setShowWhatsAppConversations] = useState(false)
   const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const { tokens } = useAuth()
+  
+  // Use cached queries
+  const { data, isLoading: loading, error: queryError } = useAgents()
+  const toggleStatusMutation = useToggleAgentStatus()
+  const createAgentMutation = useCreateAgent()
+  const updateAgentMutation = useUpdateAgent()
+  
+  const agents = data?.agents ? data.agents.agents.map(enhanceAgentWithWhatsApp) : []
+  const voices = data?.voices ? data.voices.reduce((acc, voice) => {
+    acc[voice.id] = voice.name
+    return acc
+  }, {} as Record<string, string>) : {}
+  const error = queryError?.message || null
 
-  const fetchAgents = async () => {
-    if (!tokens?.access_token) return
 
-    try {
-      setLoading(true)
-      const [agentsResponse, voicesResponse] = await Promise.all([
-        AgentAPI.getAgents(tokens.access_token),
-        AgentAPI.getVoices(tokens.access_token)
-      ])
-      
-      // Enhance agents with frontend WhatsApp data
-      const enhancedAgents = agentsResponse.agents.map(enhanceAgentWithWhatsApp)
-      setAgents(enhancedAgents)
-      
-      // Create voice mapping
-      const voiceMap = voicesResponse.reduce((acc, voice) => {
-        acc[voice.id] = voice.name
-        return acc
-      }, {} as Record<string, string>)
-      setVoices(voiceMap)
-      
-      setError(null)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to fetch agents')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchAgents()
-  }, [tokens])
-
-  const toggleAgentStatus = async (agentId: string) => {
-    if (!tokens?.access_token) return
-
-    try {
-      await AgentAPI.toggleAgentStatus(agentId, tokens.access_token)
-      
-      // Update local state
-      setAgents(prev => prev.map(agent => 
-        agent.id === agentId 
-          ? { ...agent, status: agent.status === 'active' ? 'inactive' : 'active' }
-          : agent
-      ))
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to toggle agent status')
-    }
+  const toggleAgentStatus = (agentId: string) => {
+    toggleStatusMutation.mutate(agentId)
   }
 
   const handleAgentCreated = (newAgent: Agent) => {
-    setAgents(prev => [...prev, newAgent])
-    setShowWizard(false)
+    createAgentMutation.mutate(newAgent, {
+      onSuccess: () => {
+        setShowWizard(false)
+      }
+    })
   }
 
   const handleAgentUpdated = (updatedAgent: Agent) => {
-    setAgents(prev => prev.map(agent => 
-      agent.id === updatedAgent.id ? updatedAgent : agent
-    ))
-    setEditingAgent(null)
+    updateAgentMutation.mutate(
+      { agentId: updatedAgent.id, agentData: updatedAgent },
+      {
+        onSuccess: () => {
+          setEditingAgent(null)
+        }
+      }
+    )
   }
 
   const handleEditAgent = (agent: Agent) => {
@@ -201,7 +170,7 @@ export default function AgentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {agents.map((agent) => (
+              {agents.map((agent: Agent) => (
                 <TableRow key={agent.id} className="hover:bg-gray-50 border-b border-gray-100">
                   <TableCell className="py-4">
                     <div className="flex items-center space-x-3">
