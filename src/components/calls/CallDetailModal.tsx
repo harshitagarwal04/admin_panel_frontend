@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { InteractionAttempt } from '@/types'
 import { Phone, Clock, User, MessageSquare, Download } from 'lucide-react'
 import { formatDuration, formatDate } from '@/lib/utils'
+import { useState } from 'react'
 
 interface CallDetailModalProps {
   call: InteractionAttempt
@@ -13,6 +14,8 @@ interface CallDetailModalProps {
 }
 
 export function CallDetailModal({ call, isOpen, onClose }: CallDetailModalProps) {
+  const [showRawData, setShowRawData] = useState(false)
+
   const getOutcomeColor = (outcome?: string) => {
     switch (outcome) {
       case 'answered': return 'bg-green-100 text-green-800'
@@ -58,7 +61,7 @@ Lead: Thank you, you too!
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Call ID:</span>
-                  <span className="font-medium">{call.retell_call_id}</span>
+                  <span className="font-medium">{call.retell_call_id || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Date/Time:</span>
@@ -71,6 +74,10 @@ Lead: Thank you, you too!
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-gray-600">Status:</span>
+                  <span className="font-medium">{call.status || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-600">Attempt:</span>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     #{call.attempt_number}
@@ -79,7 +86,7 @@ Lead: Thank you, you too!
                 <div className="flex justify-between">
                   <span className="text-gray-600">Outcome:</span>
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getOutcomeColor(call.outcome)}`}>
-                    {call.outcome?.replace('_', ' ')}
+                    {call.outcome?.replace('_', ' ') || 'N/A'}
                   </span>
                 </div>
               </div>
@@ -93,10 +100,8 @@ Lead: Thank you, you too!
                   <span className="font-medium">#{call.lead_id}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Agent:</span>
-                  <span className="font-medium">
-                    {call.agent_id === '1' ? 'Healthcare Lead Qualifier' : 'Real Estate Appointment Setter'}
-                  </span>
+                  <span className="text-gray-600">Agent ID:</span>
+                  <span className="font-medium">{call.agent_id}</span>
                 </div>
               </div>
             </div>
@@ -112,31 +117,33 @@ Lead: Thank you, you too!
 
             <div className="flex space-x-2">
               {call.transcript_url && (
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open(call.transcript_url, '_blank')}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Download Recording
                 </Button>
               )}
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowRawData(!showRawData)}
+              >
                 <MessageSquare className="h-4 w-4 mr-2" />
-                View Raw Data
+                {showRawData ? 'Hide' : 'View'} Raw Data
               </Button>
             </div>
           </div>
         </div>
 
-        {call.outcome === 'answered' && (
+        {showRawData && call.raw_webhook_data && (
           <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-900">Call Transcript</h3>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
+            <h3 className="font-medium text-gray-900 mb-3">Raw Webhook Data</h3>
             <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                {mockTranscript.trim()}
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                {JSON.stringify(call.raw_webhook_data, null, 2)}
               </pre>
             </div>
           </div>
