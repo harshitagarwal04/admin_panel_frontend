@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { InteractionAttempt, Agent } from '@/types'
-import { Phone, Download, Search, Calendar, Clock, FileText } from 'lucide-react'
+import { Phone, Download, Search, Calendar, Clock, FileText, RefreshCw } from 'lucide-react'
 import { CallDetailModal } from '@/components/calls/CallDetailModal'
 import { formatDuration, formatDate } from '@/lib/utils'
 import { CallAPI } from '@/lib/call-api'
@@ -45,6 +45,8 @@ export default function CallsPage() {
   const [selectedCall, setSelectedCall] = useState<CallHistoryItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date())
   const [filters, setFilters] = useState({
     agent_id: 'all',
     outcome: 'all',
@@ -53,23 +55,9 @@ export default function CallsPage() {
     search: ''
   })
   const { tokens } = useAuth()
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Fetch data and sync call history on mount or when tokens change
-  useEffect(() => {
-    const syncAndFetch = async () => {
-      if (!tokens?.access_token) return
-      try {
-        await CallAPI.syncCallHistory(tokens.access_token)
-      } catch (error) {
-        // Optionally handle sync error, but continue to fetch data
-      }
-      fetchData()
-    }
-    syncAndFetch()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!tokens?.access_token) return
 
     try {
@@ -95,10 +83,70 @@ export default function CallsPage() {
       setAgents(agentsResponse.agents)
       setMetrics(metricsResponse)
       setError(null)
+      setLastRefreshTime(new Date())
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to fetch data')
     } finally {
       setLoading(false)
+    }
+  }, [tokens, filters])
+
+  // Fetch data and sync call history on mount or when tokens change
+  useEffect(() => {
+    const syncAndFetch = async () => {
+      if (!tokens?.access_token) return
+      try {
+        await CallAPI.syncCallHistory(tokens.access_token)
+      } catch (error) {
+        // Optionally handle sync error, but continue to fetch data
+      }
+      fetchData()
+    }
+    syncAndFetch()
+  }, [tokens, fetchData])
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!autoRefreshEnabled || !tokens?.access_token) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      return
+    }
+
+    // Set up interval for auto-refresh
+    intervalRef.current = setInterval(async () => {
+      try {
+        // Sync call history first to get latest data
+        await CallAPI.syncCallHistory(tokens.access_token)
+        await fetchData()
+        setLastRefreshTime(new Date())
+      } catch (error) {
+        console.error('Auto-refresh error:', error)
+        // Continue with fetch even if sync fails
+        await fetchData()
+        setLastRefreshTime(new Date())
+      }
+    }, 30000) // 30 seconds
+
+    // Cleanup interval on unmount or when auto-refresh is disabled
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [autoRefreshEnabled, tokens, fetchData])
+
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    if (!tokens?.access_token) return
+    try {
+      await CallAPI.syncCallHistory(tokens.access_token)
+      await fetchData()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to refresh data')
     }
   }
 
@@ -107,7 +155,7 @@ export default function CallsPage() {
     if (tokens?.access_token) {
       fetchData()
     }
-  }, [filters, tokens])
+  }, [filters, tokens, fetchData])
 
   const filteredCalls = calls.filter(call => {
     const matchesSearch = !filters.search || 
@@ -163,11 +211,31 @@ export default function CallsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Call History</h1>
             <p className="text-gray-600">View and analyze all call interactions</p>
+            {autoRefreshEnabled && (
+              <div className="flex items-center mt-1 text-sm text-gray-500">
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                Auto-refresh every 30s • Last updated: {lastRefreshTime.toLocaleTimeString()}
+              </div>
+            )}
           </div>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+              className={autoRefreshEnabled ? 'bg-green-50 border-green-200 text-green-700' : ''}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${autoRefreshEnabled ? 'animate-spin' : ''}`} />
+              {autoRefreshEnabled ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+            </Button>
+            <Button variant="outline" onClick={handleManualRefresh}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Now
+            </Button>
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -365,7 +433,7 @@ export default function CallsPage() {
                           onClick={() => window.open(call.transcript_url, '_blank')}
                         >
                           <FileText className="h-3 w-3 mr-1" />
-                          Transcript
+                          Recording
                         </Button>
                       )}
                       <Button
