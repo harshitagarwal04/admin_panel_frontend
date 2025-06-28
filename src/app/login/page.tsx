@@ -114,6 +114,30 @@ export default function LoginPage() {
                   onSuccess={handleLoginSuccess}
                   onError={handleLoginError}
                 />
+                
+                {/* Debug: Manual token entry */}
+                <div className="mt-6 p-4 bg-gray-50 rounded-md">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Debug: Manual Token Entry
+                  </label>
+                  <div className="space-y-3">
+                    <Input
+                      type="text"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter Google JWT token or email for debug"
+                      onKeyPress={(e) => e.key === 'Enter' && handleTestLogin()}
+                    />
+                    <Button 
+                      onClick={handleTestLogin}
+                      disabled={isLoading}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {isLoading ? 'Signing in...' : 'Debug Login'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 
