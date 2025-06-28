@@ -66,7 +66,7 @@ export default function CallsPage() {
   })
 
   const calls = callsData?.calls || []
-  const agents = agentsData?.agents.agents || []
+  const agents = agentsData?.agents ? agentsData.agents.agents : []
   const loading = callsLoading || agentsLoading || metricsLoading
   const error = callsError?.message || null
 

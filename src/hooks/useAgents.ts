@@ -26,12 +26,8 @@ export function useAgents() {
         throw new Error('No access token available')
       }
       
-      const [agents, voices] = await Promise.all([
-        AgentAPI.getAgents(tokens.access_token),
-        AgentAPI.getVoices(tokens.access_token)
-      ])
-      
-      return { agents, voices }
+      const agents = await AgentAPI.getAgents(tokens.access_token)
+      return { agents }
     },
     enabled: !!tokens?.access_token,
     staleTime: 15 * 60 * 1000, // 15 minutes - agents don't change frequently

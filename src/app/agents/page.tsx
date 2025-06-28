@@ -10,7 +10,7 @@ import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCirc
 import { AgentWizard } from '@/components/agents/AgentWizard'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
-import { useAgents, useToggleAgentStatus, useCreateAgent, useUpdateAgent } from '@/hooks/useAgents'
+import { useAgents, useVoices, useToggleAgentStatus, useCreateAgent, useUpdateAgent } from '@/hooks/useAgents'
 
 const mockAgents: Agent[] = [
   {
@@ -70,17 +70,19 @@ export default function AgentsPage() {
   const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
   
   // Use cached queries
-  const { data, isLoading: loading, error: queryError } = useAgents()
+  const { data: agentsData, isLoading: agentsLoading, error: agentsError } = useAgents()
+  const { data: voicesData, isLoading: voicesLoading } = useVoices()
   const toggleStatusMutation = useToggleAgentStatus()
   const createAgentMutation = useCreateAgent()
   const updateAgentMutation = useUpdateAgent()
   
-  const agents = data?.agents ? data.agents.agents.map(enhanceAgentWithWhatsApp) : []
-  const voices = data?.voices ? data.voices.reduce((acc, voice) => {
+  const agents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
+  const voices = voicesData ? voicesData.reduce((acc, voice) => {
     acc[voice.id] = voice.name
     return acc
   }, {} as Record<string, string>) : {}
-  const error = queryError?.message || null
+  const loading = agentsLoading || voicesLoading
+  const error = agentsError?.message || null
 
 
   const toggleAgentStatus = (agentId: string) => {

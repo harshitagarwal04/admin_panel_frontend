@@ -40,7 +40,7 @@ export default function LeadsPage() {
   const importCSVMutation = useImportLeadsCSV()
   
   const leads = leadsData?.leads || []
-  const agents = agentsData?.agents.agents || []
+  const agents = agentsData?.agents ? agentsData.agents.agents : []
   const loading = leadsLoading || agentsLoading
   const error = leadsError?.message || null
   
