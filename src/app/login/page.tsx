@@ -81,7 +81,7 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-6">
-            {process.env.NODE_ENV === 'development' && (
+            {(process.env.NODE_ENV === 'development' || true) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Development Login
@@ -105,7 +105,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {process.env.NODE_ENV !== 'development' && (
+            {process.env.NODE_ENV !== 'development' && false && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-4">
                   Sign in with Google

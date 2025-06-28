@@ -118,13 +118,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Try to determine if credential is a JWT token or email
       const isJWTToken = credential.includes('.') && credential.split('.').length === 3
       
-      // For development, always use test login with email
-      // For production, try Google OAuth first, fallback to test login if it looks like an email
-      const tokens = process.env.NODE_ENV === 'development' 
-        ? await AuthAPI.testLogin(credential) // Use credential as email in dev
-        : isJWTToken 
-          ? await AuthAPI.googleLogin(credential) // Use as Google JWT token
-          : await AuthAPI.testLogin(credential) // Fallback to test login with email
+      // Temporarily use test login for all cases until Google OAuth backend issue is resolved
+      const tokens = await AuthAPI.testLogin(credential)
       
       setTokens(tokens)
       
