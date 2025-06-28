@@ -52,6 +52,9 @@ export class AuthAPI {
 
   // Production Google login
   static async googleLogin(token: string): Promise<AuthTokens> {
+    console.log('Sending Google login request to:', `${API_BASE_URL}/auth/google-login`)
+    console.log('Token length:', token.length)
+    
     const response = await fetch(`${API_BASE_URL}/auth/google-login`, {
       method: 'POST',
       headers: {
@@ -60,8 +63,11 @@ export class AuthAPI {
       body: JSON.stringify({ token }),
     })
 
+    console.log('Google login response status:', response.status)
+
     if (!response.ok) {
-      const error = await response.json()
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
+      console.error('Google login error response:', error)
       throw new Error(error.detail || 'Login failed')
     }
 

@@ -29,9 +29,19 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
 
   useEffect(() => {
     const initializeGoogleSignIn = () => {
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+      
+      if (!clientId) {
+        console.error('Google Client ID not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID environment variable.')
+        onError?.('Google OAuth not configured. Please contact support.')
+        return
+      }
+      
       if (window.google && !initialized.current) {
+        console.log('Initializing Google Sign-In with client ID:', clientId.substring(0, 20) + '...')
+        
         window.google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+          client_id: clientId,
           callback: handleCredentialResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
@@ -55,11 +65,18 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
 
     const handleCredentialResponse = async (response: any) => {
       try {
+        console.log('Google credential response received:', response?.credential ? 'Token present' : 'No token')
+        
+        if (!response?.credential) {
+          throw new Error('No credential received from Google')
+        }
+        
         const requiresOnboarding = await login(response.credential)
         if (requiresOnboarding) {
           onSuccess?.()
         }
       } catch (error) {
+        console.error('Google login error:', error)
         const errorMessage = error instanceof Error ? error.message : 'Login failed'
         onError?.(errorMessage)
       }
