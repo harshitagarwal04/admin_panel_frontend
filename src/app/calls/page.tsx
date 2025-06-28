@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
-import { InteractionAttempt, Agent } from '@/types'
-import { Phone, Download, Search, Calendar, Clock, FileText } from 'lucide-react'
+import { Agent } from '@/types'
+import { Phone, Download, Search, Calendar, Clock, FileText, ExternalLink } from 'lucide-react'
 import { CallDetailModal } from '@/components/calls/CallDetailModal'
 import { formatDuration, formatDate } from '@/lib/utils'
-import { CallAPI } from '@/lib/call-api'
-import { AgentAPI } from '@/lib/agent-api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useCallHistory, useCallMetrics } from '@/hooks/useCalls'
+import { useAgents } from '@/hooks/useAgents'
 
 interface CallHistoryItem {
   id: string
@@ -39,12 +38,7 @@ interface CallMetrics {
 }
 
 export default function CallsPage() {
-  const [calls, setCalls] = useState<CallHistoryItem[]>([])
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [metrics, setMetrics] = useState<CallMetrics | null>(null)
   const [selectedCall, setSelectedCall] = useState<CallHistoryItem | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState({
     agent_id: 'all',
     outcome: 'all',
@@ -52,62 +46,32 @@ export default function CallsPage() {
     end_date: '',
     search: ''
   })
-  const { tokens } = useAuth()
 
-  // Fetch data
-  useEffect(() => {
-    fetchData()
-  }, [tokens])
-
-  const fetchData = async () => {
-    if (!tokens?.access_token) return
-
-    try {
-      setLoading(true)
-      const [callsResponse, agentsResponse, metricsResponse] = await Promise.all([
-        CallAPI.getCallHistory(tokens.access_token, { 
-          per_page: 100,
-          ...(filters.agent_id !== 'all' && { agent_id: filters.agent_id }),
-          ...(filters.outcome !== 'all' && { outcome: filters.outcome as any }),
-          ...(filters.start_date && { start_date: filters.start_date }),
-          ...(filters.end_date && { end_date: filters.end_date }),
-          ...(filters.search && { search: filters.search })
-        }),
-        AgentAPI.getAgents(tokens.access_token),
-        CallAPI.getCallMetrics(tokens.access_token, {
-          ...(filters.agent_id !== 'all' && { agent_id: filters.agent_id }),
-          ...(filters.start_date && { start_date: filters.start_date }),
-          ...(filters.end_date && { end_date: filters.end_date })
-        })
-      ])
-      
-      setCalls(callsResponse.calls as CallHistoryItem[])
-      setAgents(agentsResponse.agents)
-      setMetrics(metricsResponse)
-      setError(null)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to fetch data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Apply filters when they change
-  useEffect(() => {
-    if (tokens?.access_token) {
-      fetchData()
-    }
-  }, [filters, tokens])
-
-  const filteredCalls = calls.filter(call => {
-    const matchesSearch = !filters.search || 
-      call.summary?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      call.lead_name?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      call.lead_phone?.includes(filters.search) ||
-      call.agent_name?.toLowerCase().includes(filters.search.toLowerCase())
-    
-    return matchesSearch
+  // Use cached queries
+  const { data: callsData, isLoading: callsLoading, error: callsError } = useCallHistory({
+    per_page: 100,
+    ...(filters.agent_id !== 'all' && { agent_id: filters.agent_id }),
+    ...(filters.outcome !== 'all' && { outcome: filters.outcome as 'answered' | 'no_answer' | 'failed' }),
+    ...(filters.start_date && { start_date: filters.start_date }),
+    ...(filters.end_date && { end_date: filters.end_date }),
+    ...(filters.search && { search: filters.search })
   })
+
+  const { data: agentsData, isLoading: agentsLoading } = useAgents()
+
+  const { data: metrics, isLoading: metricsLoading } = useCallMetrics({
+    ...(filters.agent_id !== 'all' && { agent_id: filters.agent_id }),
+    ...(filters.start_date && { start_date: filters.start_date }),
+    ...(filters.end_date && { end_date: filters.end_date })
+  })
+
+  const calls = callsData?.calls || []
+  const agents = agentsData?.agents.agents || []
+  const loading = callsLoading || agentsLoading || metricsLoading
+  const error = callsError?.message || null
+
+  // Filtering is now done by the query itself, so we use calls directly
+  const filteredCalls = calls
 
   const getOutcomeColor = (outcome?: string) => {
     switch (outcome) {
@@ -353,8 +317,9 @@ export default function CallsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => window.open(call.transcript_url, '_blank')}
+                          title="View call transcript"
                         >
-                          <FileText className="h-3 w-3 mr-1" />
+                          <ExternalLink className="h-3 w-3 mr-1" />
                           Transcript
                         </Button>
                       )}

@@ -198,13 +198,18 @@ export default function AgentsPage() {
                   <TableCell className="py-4">
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
-                        <span className="text-xs font-medium text-amber-800">A</span>
+                        <span className="text-xs font-medium text-amber-800">🎤</span>
                       </div>
-                      <span className="text-sm text-gray-900">
-                        {agent.voice_id && voices[agent.voice_id] 
-                          ? voices[agent.voice_id] 
-                          : 'Adrian'}
-                      </span>
+                      <div>
+                        <div className="text-sm text-gray-900">
+                          {agent.voice_id && voices[agent.voice_id] 
+                            ? voices[agent.voice_id] 
+                            : 'Default Voice'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Voice AI Ready
+                        </div>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="py-4">

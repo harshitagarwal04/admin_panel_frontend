@@ -1,27 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Lead, Agent } from '@/types'
-import { Plus, Upload, Search, Calendar, Phone } from 'lucide-react'
+import { Plus, Upload, Search, Calendar, Phone, Clock } from 'lucide-react'
 import { CSVImport } from '@/components/leads/CSVImport'
-import { LeadAPI } from '@/lib/lead-api'
-import { AgentAPI } from '@/lib/agent-api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV } from '@/hooks/useLeads'
+import { useAgents } from '@/hooks/useAgents'
 
 export default function LeadsPage() {
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [agentMap, setAgentMap] = useState<Record<string, string>>({}) // agent_id -> agent_name mapping
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'new' | 'in_progress' | 'done' | 'all'>('all')
   const [agentFilter, setAgentFilter] = useState('all')
   const [showAddForm, setShowAddForm] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -29,84 +23,60 @@ export default function LeadsPage() {
     phone: '',
     agent_id: ''
   })
-  const { tokens } = useAuth()
 
-  // Fetch leads and agents
-  useEffect(() => {
-    fetchData()
-  }, [tokens])
-
-  const fetchData = async () => {
-    if (!tokens?.access_token) return
-
-    try {
-      setLoading(true)
-      const [leadsResponse, agentsResponse] = await Promise.all([
-        LeadAPI.getLeads(tokens.access_token, { per_page: 100 }),
-        AgentAPI.getAgents(tokens.access_token)
-      ])
-      
-      setLeads(leadsResponse.leads)
-      setAgents(agentsResponse.agents)
-      
-      // Create agent mapping
-      const mapping = agentsResponse.agents.reduce((acc, agent) => {
-        acc[agent.id] = agent.name
-        return acc
-      }, {} as Record<string, string>)
-      setAgentMap(mapping)
-      
-      // Set default agent for new lead form
-      if (agentsResponse.agents.length > 0 && !newLead.agent_id) {
-        setNewLead(prev => ({ ...prev, agent_id: agentsResponse.agents[0].id }))
-      }
-      
-      setError(null)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to fetch data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lead.phone_e164.includes(searchTerm) ||
-                         agentMap[lead.agent_id]?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || lead.status === statusFilter
-    const matchesAgent = agentFilter === 'all' || lead.agent_id === agentFilter
-    return matchesSearch && matchesStatus && matchesAgent
+  // Use cached queries
+  const { data: leadsData, isLoading: leadsLoading, error: leadsError } = useLeads({
+    status_filter: statusFilter === 'all' ? undefined : statusFilter,
+    agent_id: agentFilter === 'all' ? undefined : agentFilter,
+    search: searchTerm || undefined,
+    per_page: 100
   })
+  
+  const { data: agentsData, isLoading: agentsLoading } = useAgents()
+  
+  // Mutations
+  const createLeadMutation = useCreateLead()
+  const scheduleCallMutation = useScheduleCall()
+  const importCSVMutation = useImportLeadsCSV()
+  
+  const leads = leadsData?.leads || []
+  const agents = agentsData?.agents.agents || []
+  const loading = leadsLoading || agentsLoading
+  const error = leadsError?.message || null
+  
+  // Create agent mapping for display
+  const agentMap = agents.reduce((acc, agent) => {
+    acc[agent.id] = agent.name
+    return acc
+  }, {} as Record<string, string>)
 
-  const handleAddLead = async () => {
-    if (!newLead.first_name || !newLead.phone || !newLead.agent_id || !tokens?.access_token) return
+  // Set default agent for new lead form when agents load
+  if (agents.length > 0 && !newLead.agent_id) {
+    setNewLead(prev => ({ ...prev, agent_id: agents[0].id }))
+  }
+  
+  // Filtering is now done by the query itself, so we use leads directly
+  const filteredLeads = leads
 
-    try {
-      const leadData = {
-        agent_id: newLead.agent_id,
-        first_name: newLead.first_name,
-        phone_e164: newLead.phone.startsWith('+') ? newLead.phone : `+1${newLead.phone}`,
-      }
-      
-      const createdLead = await LeadAPI.createLead(leadData, tokens.access_token)
-      setLeads(prev => [...prev, createdLead])
-      setNewLead({ first_name: '', phone: '', agent_id: agents.length > 0 ? agents[0].id : '' })
-      setShowAddForm(false)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create lead')
+  const handleAddLead = () => {
+    if (!newLead.first_name || !newLead.phone || !newLead.agent_id) return
+
+    const leadData = {
+      agent_id: newLead.agent_id,
+      first_name: newLead.first_name,
+      phone_e164: newLead.phone.startsWith('+') ? newLead.phone : `+1${newLead.phone}`,
     }
+    
+    createLeadMutation.mutate(leadData, {
+      onSuccess: () => {
+        setNewLead({ first_name: '', phone: '', agent_id: agents.length > 0 ? agents[0].id : '' })
+        setShowAddForm(false)
+      }
+    })
   }
 
-  const handleScheduleCall = async (leadId: string) => {
-    if (!tokens?.access_token) return
-
-    try {
-      await LeadAPI.scheduleCall(leadId, tokens.access_token)
-      // Refresh leads to show updated status
-      fetchData()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to schedule call')
-    }
+  const handleScheduleCall = (leadId: string) => {
+    scheduleCallMutation.mutate(leadId)
   }
 
   const getStatusColor = (status: string) => {
@@ -175,7 +145,7 @@ export default function LeadsPage() {
           <select
             className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => setStatusFilter(e.target.value as 'new' | 'in_progress' | 'done' | 'all')}
           >
             <option value="all">All Status</option>
             <option value="new">New</option>
@@ -307,14 +277,25 @@ export default function LeadsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleScheduleCall(lead.id)}
-                      disabled={lead.status === 'done'}
-                    >
-                      {lead.status === 'done' ? 'Completed' : 'Schedule Now'}
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                      {lead.status === 'in_progress' && (
+                        <div className="flex items-center text-blue-600">
+                          <Clock className="h-4 w-4 mr-1 animate-pulse" />
+                          <span className="text-xs">Calling...</span>
+                        </div>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleScheduleCall(lead.id)}
+                        disabled={lead.status === 'done' || lead.status === 'in_progress' || scheduleCallMutation.isPending}
+                      >
+                        {scheduleCallMutation.isPending ? 'Scheduling...' : 
+                         lead.status === 'done' ? 'Completed' : 
+                         lead.status === 'in_progress' ? 'In Progress' : 
+                         'Schedule Now'}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -328,9 +309,8 @@ export default function LeadsPage() {
         isOpen={showCSVImport}
         onClose={() => setShowCSVImport(false)}
         agents={agents}
-        onImport={(importedLeads) => {
-          // Refresh data to get the actual imported leads from backend
-          fetchData()
+        onImport={() => {
+          // Cache will automatically refresh with new data
           setShowCSVImport(false)
         }}
       />

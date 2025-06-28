@@ -1,6 +1,6 @@
 import { AuthTokens, AuthUser, OnboardingData } from '@/types/auth'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://voice-ai-admin-api-762279639608.us-central1.run.app/api/v1'
 
 interface AuthResponse {
   access_token: string
