@@ -89,10 +89,10 @@ export default function UpgradePage() {
             <div className="flex items-center justify-between">
               <span className="text-white font-medium">{email}</span>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={handleCopyEmail}
-                className="border-white/30 text-white hover:bg-white/20 ml-3"
+                className="bg-white text-blue-600 hover:bg-gray-100 ml-3"
               >
                 {copied ? (
                   <>
