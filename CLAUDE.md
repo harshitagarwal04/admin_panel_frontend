@@ -7,12 +7,12 @@ Admin frontend for ConversAI Labs Voice AI system. Built with Next.js 14, TypeSc
 - **Framework**: Next.js 14 + App Router
 - **State**: React Query (@tanstack/react-query) 
 - **Auth**: Google OAuth + JWT
-- **API**: `voice-ai-admin-api-762279639608.us-central1.run.app/api/v1`
+- **API**: Environment-based configuration
 
 ## Key Features
 
 ### 🚀 Production Voice Calling
-- Retell AI integration (+1(607)499-4542)
+- Retell AI integration with outbound calling
 - Real-time webhooks (new → in_progress → done)
 - Call history with transcripts/summaries
 
@@ -57,7 +57,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 ### Production
 ```bash
 NODE_ENV=production
-NEXT_PUBLIC_API_URL=https://voice-ai-admin-api-762279639608.us-central1.run.app/api/v1
+NEXT_PUBLIC_API_URL=https://your-api-domain.com/api/v1
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_client_id
 ```
 
