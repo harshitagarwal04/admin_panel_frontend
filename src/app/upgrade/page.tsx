@@ -13,7 +13,7 @@ const features = [
 
 export default function UpgradePage() {
   const handleContactSales = () => {
-    window.open('mailto:sales@conversailabs.com?subject=Upgrade to Pro Plan', '_blank')
+    window.open('mailto:connect@conversailabs.com?subject=Upgrade to Pro Plan', '_blank')
   }
 
   return (
@@ -67,24 +67,14 @@ export default function UpgradePage() {
           <p className="text-blue-100 mb-6">
             Contact our sales team to discuss pricing and get started with your Pro plan today.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button
-              variant="secondary"
-              size="lg"
-              onClick={handleContactSales}
-              className="bg-white text-blue-600 hover:bg-gray-100"
-            >
-              Contact Sales
-            </Button>
-            <Button
-              variant="outline"
-              size="lg" 
-              className="border-white text-white hover:bg-white/10"
-              onClick={() => window.open('https://calendly.com/conversailabs', '_blank')}
-            >
-              Schedule Demo
-            </Button>
-          </div>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={handleContactSales}
+            className="bg-white text-blue-600 hover:bg-gray-100"
+          >
+            Contact Sales
+          </Button>
         </div>
       </div>
     </Layout>
