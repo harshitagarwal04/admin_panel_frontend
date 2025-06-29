@@ -2,7 +2,8 @@
 
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
-import { Check, Phone, Users, BarChart3 } from 'lucide-react'
+import { Check, Phone, Users, BarChart3, Copy } from 'lucide-react'
+import { useState } from 'react'
 
 const features = [
   { icon: <Phone className="h-5 w-5" />, text: 'Unlimited voice calls' },
@@ -12,8 +13,25 @@ const features = [
 ]
 
 export default function UpgradePage() {
-  const handleContactSales = () => {
-    window.open('mailto:connect@conversailabs.com?subject=Upgrade to Pro Plan', '_blank')
+  const [copied, setCopied] = useState(false)
+  const email = 'connect@conversailabs.com'
+
+  const handleCopyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText(email)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = email
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   return (
@@ -67,14 +85,29 @@ export default function UpgradePage() {
           <p className="text-blue-100 mb-6">
             Contact our sales team to discuss pricing and get started with your Pro plan today.
           </p>
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={handleContactSales}
-            className="bg-white text-blue-600 hover:bg-gray-100"
-          >
-            Contact Sales
-          </Button>
+          <div className="bg-white/10 rounded-lg p-4 mb-6 max-w-md mx-auto">
+            <div className="flex items-center justify-between">
+              <span className="text-white font-medium">{email}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyEmail}
+                className="border-white/30 text-white hover:bg-white/20 ml-3"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 mr-1" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </Layout>
