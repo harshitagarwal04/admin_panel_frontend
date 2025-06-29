@@ -52,9 +52,6 @@ export class AuthAPI {
 
   // Production Google login
   static async googleLogin(token: string): Promise<AuthTokens> {
-    console.log('Sending Google login request to:', `${API_BASE_URL}/auth/google-login`)
-    console.log('Token length:', token.length)
-    
     const response = await fetch(`${API_BASE_URL}/auth/google-login`, {
       method: 'POST',
       headers: {
@@ -62,8 +59,6 @@ export class AuthAPI {
       },
       body: JSON.stringify({ token }),
     })
-
-    console.log('Google login response status:', response.status)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
@@ -94,7 +89,6 @@ export class AuthAPI {
     }
 
     const data: UserResponse = await response.json()
-    console.log('User data from backend:', data)
     
     let company_id = null
     if (data.has_company) {
@@ -108,7 +102,6 @@ export class AuthAPI {
         if (companyResponse.ok) {
           const companyData: CompanyResponse = await companyResponse.json()
           company_id = companyData.id
-          console.log('Company data from backend:', companyData)
         }
       } catch (error) {
         console.warn('Failed to fetch company info:', error)
@@ -126,7 +119,6 @@ export class AuthAPI {
       updated_at: ''
     }
 
-    console.log('Final user object:', user)
     return user
   }
 
@@ -180,7 +172,6 @@ export class AuthAPI {
   // Note: Backend doesn't have logout endpoint yet
   static async logout(accessToken: string): Promise<void> {
     // Just clear local storage for now
-    console.log('Logout - clearing local session')
   }
 
   static async validateToken(accessToken: string): Promise<AuthUser> {

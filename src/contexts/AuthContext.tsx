@@ -140,7 +140,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Return true if onboarding is complete (has company)
       const hasCompany = user.company_id !== null
-      console.log('Login result - user has company:', hasCompany, 'company_id:', user.company_id)
       return hasCompany
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed')

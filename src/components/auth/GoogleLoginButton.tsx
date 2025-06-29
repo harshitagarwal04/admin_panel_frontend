@@ -38,8 +38,6 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
       }
       
       if (window.google && !initialized.current) {
-        console.log('Initializing Google Sign-In with client ID:', clientId.substring(0, 20) + '...')
-        
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: handleCredentialResponse,
@@ -65,8 +63,6 @@ export function GoogleLoginButton({ onSuccess, onError }: GoogleLoginButtonProps
 
     const handleCredentialResponse = async (response: any) => {
       try {
-        console.log('Google credential response received:', response?.credential ? 'Token present' : 'No token')
-        
         if (!response?.credential) {
           throw new Error('No credential received from Google')
         }
