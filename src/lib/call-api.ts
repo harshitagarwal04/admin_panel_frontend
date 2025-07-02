@@ -1,4 +1,3 @@
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://voice-ai-admin-api-762279639608.us-central1.run.app/api/v1'
 
 interface CallHistoryResponse {
@@ -14,6 +13,7 @@ interface CallHistoryResponse {
   transcript_url?: string
   summary?: string
   created_at: string
+  raw_webhook_data?: Record<string, any>
 }
 
 interface CallHistoryListResponse {
