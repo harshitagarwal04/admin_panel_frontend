@@ -94,8 +94,10 @@ export function useUpdateAgent() {
   const { tokens } = useAuth()
 
   return useMutation({
-    mutationFn: ({ agentId, agentData }: { agentId: string, agentData: Partial<Agent> }) => 
-      AgentAPI.updateAgent(agentId, agentData, tokens?.access_token || ''),
+    mutationFn: ({ agentId, agentData }: { agentId: string, agentData: Partial<Agent> }) => {
+      
+      return AgentAPI.updateAgent(agentId, agentData, tokens?.access_token || '')
+    },
     onMutate: async ({ agentId, agentData }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: agentKeys.lists() })
@@ -107,7 +109,7 @@ export function useUpdateAgent() {
 
       // Optimistically update agents list
       queryClient.setQueryData(agentKeys.lists(), (old: any) => {
-        if (!old) return old
+        if (!old || !Array.isArray(old.agents)) return old
         return {
           ...old,
           agents: old.agents.map((agent: Agent) => 
@@ -123,13 +125,14 @@ export function useUpdateAgent() {
 
       return { previousAgents, previousAgent }
     },
-    onError: (err, { agentId }, context) => {
+    onError: (err, variables, context) => {
+      console.error('[useUpdateAgent] Mutation error:', err)
       // Rollback optimistic updates
       if (context?.previousAgents) {
         queryClient.setQueryData(agentKeys.lists(), context.previousAgents)
       }
       if (context?.previousAgent) {
-        queryClient.setQueryData(agentKeys.detail(agentId), context.previousAgent)
+        queryClient.setQueryData(agentKeys.detail(variables.agentId), context.previousAgent)
       }
     },
     onSettled: (data, error, { agentId }) => {
