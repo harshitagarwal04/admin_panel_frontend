@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { InteractionAttempt } from '@/types'
 import { Phone, Clock, User, MessageSquare, Download } from 'lucide-react'
 import { formatDuration, formatDate } from '@/lib/utils'
+import { useState } from 'react'
 
 interface CallDetailModalProps {
   call: InteractionAttempt
@@ -22,31 +23,17 @@ export function CallDetailModal({ call, isOpen, onClose }: CallDetailModalProps)
     }
   }
 
-  const mockTranscript = `
-Agent: Hello! I'm calling from HealthCare Corp regarding your interest in our healthcare services. Is this a good time to talk?
+  // Extract transcript and recording_url from the call object
+  // Try multiple possible locations for transcript
+  const transcript = call.raw_webhook_data?.transcript || 
+                    call.raw_webhook_data?.call?.transcript || 
+                    ''
+  const recordingUrl = call.transcript_url || ''
+  const callSummary = call.summary || 'No summary available'
 
-Lead: Hi, yes this is fine. I was looking into consultation services.
 
-Agent: Great! I'd be happy to help you with that. Can you tell me what type of healthcare service you're interested in?
 
-Lead: I'm looking for a general health consultation. I've been having some concerns about my overall wellness.
-
-Agent: I understand. Our general health consultations are comprehensive and can address a wide range of wellness concerns. Would you be interested in scheduling an appointment with one of our healthcare professionals?
-
-Lead: Yes, that sounds good. When are you available?
-
-Agent: Let me check our calendar. We have availability next week on Tuesday at 2 PM or Wednesday at 10 AM. Which works better for you?
-
-Lead: Tuesday at 2 PM would be perfect.
-
-Agent: Excellent! I'll schedule you for Tuesday at 2 PM. You'll receive a confirmation email shortly with all the details. Is there anything else I can help you with today?
-
-Lead: No, that covers everything. Thank you!
-
-Agent: You're welcome! We look forward to seeing you on Tuesday. Have a great day!
-
-Lead: Thank you, you too!
-  `
+  const [showTranscript, setShowTranscript] = useState(false)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Call Details" size="xl">
@@ -95,7 +82,7 @@ Lead: Thank you, you too!
                 <div className="flex justify-between">
                   <span className="text-gray-600">Agent:</span>
                   <span className="font-medium">
-                    {call.agent_id === '1' ? 'Healthcare Lead Qualifier' : 'Real Estate Appointment Setter'}
+                    {call.agent_name || 'Unknown Agent'}
                   </span>
                 </div>
               </div>
@@ -106,40 +93,42 @@ Lead: Thank you, you too!
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3">Call Summary</h3>
               <p className="text-sm text-gray-700">
-                {call.summary || 'No summary available'}
+                {callSummary}
               </p>
             </div>
 
             <div className="flex space-x-2">
-              {call.transcript_url && (
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Recording
+              {recordingUrl && (
+                <audio controls src={recordingUrl} className="h-10 w-full">
+                  Your browser does not support the audio element.
+                </audio>
+              )}
+              {transcript && (
+                <Button variant="outline" size="sm" onClick={() => setShowTranscript(true)}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Transcript
                 </Button>
               )}
-              <Button variant="outline" size="sm">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                View Raw Data
-              </Button>
             </div>
+            
+
           </div>
         </div>
 
-        {call.outcome === 'answered' && (
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-900">Call Transcript</h3>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
+        {/* Transcript Modal */}
+        {showTranscript && (
+          <Modal isOpen={showTranscript} onClose={() => setShowTranscript(false)} title="Call Transcript" size="lg">
             <div className="bg-white p-4 rounded border max-h-96 overflow-y-auto">
               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                {mockTranscript.trim()}
+                {transcript.trim() || 'No transcript available'}
               </pre>
             </div>
-          </div>
+            <div className="flex justify-end mt-4">
+              <Button variant="outline" onClick={() => setShowTranscript(false)}>
+                Close
+              </Button>
+            </div>
+          </Modal>
         )}
 
         <div className="flex justify-end space-x-3">
