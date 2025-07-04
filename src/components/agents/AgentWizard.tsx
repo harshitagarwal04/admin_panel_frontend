@@ -211,8 +211,9 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
 
       let resultAgent: Agent
       if (editingAgent) {
-        // Update existing agent - will be handled by parent component via mutation
-        resultAgent = { ...editingAgent, ...agentData }
+        // Only send the updatable fields and the id for update
+        resultAgent = { ...agentData, id: editingAgent.id } as Agent
+    
       } else {
         // Create new agent - will be handled by parent component via mutation
         resultAgent = { ...agentData, id: Date.now().toString(), company_id: '1', status: 'active', created_at: new Date().toISOString(), updated_at: new Date().toISOString() } as Agent

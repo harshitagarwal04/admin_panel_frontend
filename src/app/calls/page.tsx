@@ -312,17 +312,6 @@ export default function CallsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      {call.transcript_url && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(call.transcript_url, '_blank')}
-                          title="View call transcript"
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Transcript
-                        </Button>
-                      )}
                       <Button
                         variant="outline"
                         size="sm"

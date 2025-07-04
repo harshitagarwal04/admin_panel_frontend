@@ -84,6 +84,10 @@ export interface InteractionAttempt {
   retell_call_id?: string
   created_at: string
   updated_at: string
+  // Related data from API
+  lead_name?: string
+  lead_phone?: string
+  agent_name?: string
 }
 
 export interface Template {
