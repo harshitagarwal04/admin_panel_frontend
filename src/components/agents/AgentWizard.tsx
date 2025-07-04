@@ -94,6 +94,9 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
         business_hours_end: editingAgent.business_hours_end,
         max_call_duration_minutes: editingAgent.max_call_duration_minutes
       })
+      
+      // Reset step to 1 when editing (in case modal was left on different step)
+      setCurrentStep(1)
     }
   }, [editingAgent])
 
@@ -104,12 +107,12 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     }
   }, [isOpen])
 
-  // Set default voice when voices are loaded
+  // Set default voice when voices are loaded (only for new agents)
   useEffect(() => {
-    if (voices && voices.length > 0 && !formData.voice_id) {
+    if (voices && voices.length > 0 && !formData.voice_id && !editingAgent) {
       setFormData(prev => ({ ...prev, voice_id: voices[0].id }))
     }
-  }, [voices, formData.voice_id])
+  }, [voices, formData.voice_id, editingAgent])
 
   const fetchCompanyData = async () => {
     if (!tokens?.access_token) return
@@ -253,36 +256,8 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       
       onComplete(agentWithWhatsApp)
       
-      // Close the modal immediately after calling onComplete
-      onClose()
-      
-      // Reset form after a small delay to avoid UI flicker
-      setTimeout(() => {
-        setCurrentStep(1)
-        setSelectedTemplate(null)
-        setSelectedUseCase('')
-        setFormData({
-          name: '',
-          prompt: '',
-          welcome_message: '',
-          voice_id: voices && voices.length > 0 ? voices[0].id : '',
-          channels: ['voice'] as ('voice' | 'whatsapp')[],
-          contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
-          call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
-          custom_schedule_days: [1, 3, 7],
-          daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
-          inbound_phone: '',
-          outbound_phone: '',
-        whatsapp_phone: '',
-        whatsapp_auto_reply: true,
-        whatsapp_handoff: false,
-        max_attempts: 3,
-        retry_delay_minutes: 30,
-        business_hours_start: '09:00',
-        business_hours_end: '17:00',
-        max_call_duration_minutes: 20
-      })
-      }, 100) // Small delay to avoid UI flicker
+      // Close the modal and reset form
+      handleClose()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to save agent')
     } finally {
@@ -1015,8 +990,37 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     }
   }
 
+  const handleClose = () => {
+    // Reset form state when closing (for both new and edit modes)
+    setCurrentStep(1)
+    setSelectedTemplate(null)
+    setSelectedUseCase('')
+    setFormData({
+      name: '',
+      prompt: '',
+      welcome_message: '',
+      voice_id: '',
+      channels: ['voice'] as ('voice' | 'whatsapp')[],
+      contact_strategy: 'call_first' as 'call_first' | 'whatsapp_first' | 'whatsapp_only' | 'voice_only',
+      call_schedule: 'realistic' as 'realistic' | 'aggressive' | 'gentle' | 'custom',
+      custom_schedule_days: [1, 3, 7],
+      daily_call_times: ['morning', 'afternoon'] as ('morning' | 'afternoon' | 'evening')[],
+      inbound_phone: '',
+      outbound_phone: '',
+      whatsapp_phone: '',
+      whatsapp_auto_reply: true,
+      whatsapp_handoff: false,
+      max_attempts: 3,
+      retry_delay_minutes: 30,
+      business_hours_start: '09:00',
+      business_hours_end: '17:00',
+      max_call_duration_minutes: 20
+    })
+    onClose()
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editingAgent ? "Edit Agent" : "Create New Agent"} size="lg">
+    <Modal isOpen={isOpen} onClose={handleClose} title={editingAgent ? "Edit Agent" : "Create New Agent"} size="lg">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex space-x-2">
