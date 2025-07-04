@@ -335,15 +335,15 @@ export function PhoneInput({ value = '', onChange, placeholder, label, className
           {label}
         </label>
       )}
-      <div className="flex w-full">
+      <div className="flex w-full max-w-full">
         <select
           value={selectedCountry.code}
           onChange={(e) => handleCountryChange(e.target.value)}
-          className="px-2 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50 text-sm w-40 flex-shrink-0"
+          className="px-2 py-2 border border-gray-300 rounded-l-md focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50 text-sm w-32 flex-shrink-0"
         >
           {countries.map((country) => (
             <option key={country.code} value={country.code}>
-              {country.flag} {country.dialCode} {country.name}
+              {country.flag} {country.dialCode}
             </option>
           ))}
         </select>
@@ -352,7 +352,7 @@ export function PhoneInput({ value = '', onChange, placeholder, label, className
           value={value.startsWith(selectedCountry.dialCode) ? value.substring(selectedCountry.dialCode.length) : phoneNumber}
           onChange={handlePhoneChange}
           placeholder={placeholder || `Enter number`}
-          className={`flex-1 px-3 py-2 border rounded-r-md focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+          className={`flex-1 min-w-0 px-3 py-2 border rounded-r-md focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
             showError 
               ? 'border-red-300 focus:ring-red-500' 
               : 'border-gray-300'
