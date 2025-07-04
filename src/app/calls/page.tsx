@@ -269,10 +269,7 @@ export default function CallsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div>
-                      <div className="text-sm font-medium">{call.lead_name || 'Unknown Lead'}</div>
-                      <div className="text-xs text-gray-500">ID: {call.lead_id}</div>
-                    </div>
+                    <div className="text-sm font-medium">{call.lead_name || 'Unknown Lead'}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center">
@@ -281,11 +278,11 @@ export default function CallsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      call.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      call.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                      call.status === 'failed' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                    <span className={`text-xs font-medium ${
+                      call.status === 'completed' ? 'text-green-600' :
+                      call.status === 'in_progress' ? 'text-blue-600' :
+                      call.status === 'failed' ? 'text-red-600' :
+                      'text-gray-600'
                     }`}>
                       {call.status?.replace('_', ' ')}
                     </span>
