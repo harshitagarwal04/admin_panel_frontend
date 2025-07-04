@@ -25,9 +25,12 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
   });
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
 
-  // Get selected agent's variables
+  // Get selected agent's variables (exclude hardcoded fields)
   const selectedAgent = agents.find((a) => a.id === newLead.agent_id);
-  const agentVariables: string[] = selectedAgent?.variables ? Object.keys(selectedAgent.variables) : [];
+  const allAgentVariables: string[] = selectedAgent?.variables ? Object.keys(selectedAgent.variables) : [];
+  const agentVariables = allAgentVariables.filter(variable => 
+    !['service_type', 'health_concern'].includes(variable)
+  );
 
   // Phone number validation
   const isValidPhone = (phone: string): boolean => {
@@ -68,13 +71,17 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
       first_name: newLead.first_name,
       phone_e164: newLead.phone,
       custom_fields: {
-        ...agentVariables.reduce((acc, key) => {
-          acc[key] = variableValues[key] || '';
+        // Include all agent variables (including duplicates)
+        ...allAgentVariables.reduce((acc, key) => {
+          if (key === 'service_type') {
+            acc[key] = newLead.service_type || '';
+          } else if (key === 'health_concern') {
+            acc[key] = newLead.health_concern || '';
+          } else {
+            acc[key] = variableValues[key] || '';
+          }
           return acc;
         }, {} as Record<string, string>),
-        // Include service_type and health_concern if they have values
-        ...(newLead.service_type && { service_type: newLead.service_type }),
-        ...(newLead.health_concern && { health_concern: newLead.health_concern }),
       },
     };
 

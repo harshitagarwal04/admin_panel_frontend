@@ -326,7 +326,7 @@ export function PhoneInput({ value = '', onChange, placeholder, label, className
   }
 
   const isValid = isValidPhone(value)
-  const showError = value && !isValid
+  const showError = value && value.length > selectedCountry.dialCode.length && !isValid
 
   return (
     <div className={className}>
@@ -352,7 +352,7 @@ export function PhoneInput({ value = '', onChange, placeholder, label, className
         <div className="flex-1">
           <input
             type="tel"
-            value={phoneNumber}
+            value={value.startsWith(selectedCountry.dialCode) ? value.substring(selectedCountry.dialCode.length) : phoneNumber}
             onChange={handlePhoneChange}
             placeholder={placeholder || `Enter number without ${selectedCountry.dialCode}`}
             className={`w-full px-3 py-2 border rounded-r-md focus:ring-2 focus:ring-primary-500 focus:border-transparent ${

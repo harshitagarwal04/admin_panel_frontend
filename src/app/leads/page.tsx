@@ -63,10 +63,6 @@ export default function LeadsPage() {
   };
 
   const handleStopLead = (leadId: string) => {
-    if (!confirm('Are you sure you want to stop this lead from calling?')) {
-      return;
-    }
-
     stopLeadMutation.mutate({ leadId, disposition: 'not_interested' });
   };
 
