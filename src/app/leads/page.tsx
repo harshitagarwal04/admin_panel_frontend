@@ -5,11 +5,11 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { PhoneInput } from '@/components/ui/PhoneInput';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Lead, Agent } from '@/types';
 import { Plus, Upload, Search, Calendar, Phone, Clock, Square } from 'lucide-react';
 import { CSVImport } from '@/components/leads/CSVImport';
+import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead } from '@/hooks/useLeads';
 import { useAgents } from '@/hooks/useAgents';
 
@@ -18,15 +18,7 @@ export default function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'new' | 'in_progress' | 'done' | 'stopped' | 'all'>('all');
   const [agentFilter, setAgentFilter] = useState('all');
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newLead, setNewLead] = useState({
-    first_name: '',
-    phone: '',
-    agent_id: '',
-    service_type: '',
-    health_concern: ''
-  });
-  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Use cached queries
   const { data: leadsData, isLoading: leadsLoading, error: leadsError } = useLeads({
@@ -38,22 +30,6 @@ export default function LeadsPage() {
 
   const { data: agentsData, isLoading: agentsLoading } = useAgents();
   const agents = agentsData?.agents ? agentsData.agents.agents : [];
-
-  // Get selected agent's variables
-  const selectedAgent = agents.find((a) => a.id === newLead.agent_id);
-  const agentVariables: string[] = selectedAgent?.variables ? Object.keys(selectedAgent.variables) : [];
-
-  // Set default agent for new lead form when agents load
-  useEffect(() => {
-    if (agents.length > 0 && !newLead.agent_id) {
-      setNewLead((prev) => ({ ...prev, agent_id: agents[0].id }));
-    }
-  }, [agents]);
-
-  // Reset variable values when agent changes
-  useEffect(() => {
-    setVariableValues({});
-  }, [newLead.agent_id]);
 
   // Mutations
   const createLeadMutation = useCreateLead();
@@ -74,24 +50,10 @@ export default function LeadsPage() {
   // Filtering is now done by the query itself, so we use leads directly
   const filteredLeads = leads;
 
-  const handleAddLead = () => {
-    if (!newLead.first_name || !newLead.phone || !newLead.agent_id) return;
-
-    const leadData = {
-      agent_id: newLead.agent_id,
-      first_name: newLead.first_name,
-      phone_e164: newLead.phone.startsWith('+') ? newLead.phone : `+1${newLead.phone}`,
-      custom_fields: agentVariables.reduce((acc, key) => {
-        acc[key] = variableValues[key] || '';
-        return acc;
-      }, {} as Record<string, string>),
-    };
-
+  const handleAddLead = (leadData: any) => {
     createLeadMutation.mutate(leadData, {
       onSuccess: () => {
-        setNewLead({ first_name: '', phone: '', agent_id: agents.length > 0 ? agents[0].id : '', service_type: '', health_concern: '' });
-        setVariableValues({});
-        setShowAddForm(false);
+        setShowAddModal(false);
       }
     });
   };
@@ -162,7 +124,7 @@ export default function LeadsPage() {
                 <Upload className="h-4 w-4 mr-2" />
                 Import CSV
               </Button>
-              <Button onClick={() => setShowAddForm(true)}>
+              <Button onClick={() => setShowAddModal(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Lead
               </Button>
@@ -203,92 +165,6 @@ export default function LeadsPage() {
             </select>
           </div>
 
-          {showAddForm && (
-            <div className="bg-white p-4 rounded-lg border">
-              <h3 className="text-lg font-medium mb-4">Add New Lead</h3>
-              <div className="space-y-4">
-                {/* Step 1: Agent Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Assign to Agent
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    value={newLead.agent_id}
-                    onChange={(e) => setNewLead((prev) => ({ ...prev, agent_id: e.target.value }))}
-                  >
-                    <option value="">Select Agent</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>{agent.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Step 2: Lead Details - Only show after agent is selected */}
-                {newLead.agent_id && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="First Name"
-                      value={newLead.first_name}
-                      onChange={(e) => setNewLead((prev) => ({ ...prev, first_name: e.target.value }))}
-                      placeholder="Enter first name"
-                    />
-                    <PhoneInput
-                      label="Phone Number"
-                      value={newLead.phone}
-                      onChange={(value) => setNewLead((prev) => ({ ...prev, phone: value }))}
-                      placeholder="+1234567890"
-                    />
-                    <Input
-                      label="Service Type"
-                      value={newLead.service_type}
-                      onChange={(e) => setNewLead((prev) => ({ ...prev, service_type: e.target.value }))}
-                      placeholder="Enter service_type"
-                    />
-                    <Input
-                      label="Health Concern"
-                      value={newLead.health_concern}
-                      onChange={(e) => setNewLead((prev) => ({ ...prev, health_concern: e.target.value }))}
-                      placeholder="Enter health_concern"
-                    />
-                  </div>
-                )}
-
-                {/* Agent variables as inputs */}
-                {agentVariables.length > 0 && newLead.agent_id && (
-                  <div className="grid grid-cols-4 gap-4">
-                    {agentVariables.map((variable) => (
-                      <Input
-                        key={variable}
-                        label={variable.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                        value={variableValues[variable] || ""}
-                        onChange={(e) =>
-                          setVariableValues((prev) => ({
-                            ...prev,
-                            [variable]: e.target.value,
-                          }))
-                        }
-                        placeholder={`Enter ${variable}`}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div className="flex items-center space-x-2">
-                  <Button
-                    onClick={handleAddLead}
-                    disabled={!newLead.first_name || !newLead.phone || !newLead.agent_id}
-                  >
-                    Add Lead
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowAddForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="bg-white rounded-lg shadow">
             {leads.length === 0 ? (
@@ -411,6 +287,14 @@ export default function LeadsPage() {
             // Cache will automatically refresh with new data
             setShowCSVImport(false);
           }}
+        />
+
+        <AddLeadModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAddLead}
+          agents={agents}
+          isLoading={createLeadMutation.isPending}
         />
       </Layout>
     </ProtectedRoute>
