@@ -90,6 +90,7 @@ src/
 - Google Client ID was removed from git history (cleaned)
 - 8 GitHub security alerts pending (1 critical, 3 high)
 - Production code sanitized for public release
+- Never save credentials/secrets in files which are getting checked in
 
 ## Support
 **Contact**: connect@conversailabs.com  

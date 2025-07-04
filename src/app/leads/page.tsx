@@ -5,23 +5,26 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { PhoneInput } from '@/components/ui/PhoneInput'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Lead, Agent } from '@/types'
-import { Plus, Upload, Search, Calendar, Phone, Clock } from 'lucide-react'
+import { Plus, Upload, Search, Calendar, Phone, Clock, Square } from 'lucide-react'
 import { CSVImport } from '@/components/leads/CSVImport'
-import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV } from '@/hooks/useLeads'
+import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead } from '@/hooks/useLeads'
 import { useAgents } from '@/hooks/useAgents'
 
 export default function LeadsPage() {
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'new' | 'in_progress' | 'done' | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<'new' | 'in_progress' | 'done' | 'stopped' | 'all'>('all')
   const [agentFilter, setAgentFilter] = useState('all')
   const [showAddForm, setShowAddForm] = useState(false)
   const [newLead, setNewLead] = useState({
     first_name: '',
     phone: '',
-    agent_id: ''
+    agent_id: '',
+    service_type: '',
+    health_concern: ''
   })
 
   // Use cached queries
@@ -38,6 +41,7 @@ export default function LeadsPage() {
   const createLeadMutation = useCreateLead()
   const scheduleCallMutation = useScheduleCall()
   const importCSVMutation = useImportLeadsCSV()
+  const stopLeadMutation = useStopLead()
   
   const leads = leadsData?.leads || []
   const agents = agentsData?.agents ? agentsData.agents.agents : []
@@ -69,7 +73,7 @@ export default function LeadsPage() {
     
     createLeadMutation.mutate(leadData, {
       onSuccess: () => {
-        setNewLead({ first_name: '', phone: '', agent_id: agents.length > 0 ? agents[0].id : '' })
+        setNewLead({ first_name: '', phone: '', agent_id: '', service_type: '', health_concern: '' })
         setShowAddForm(false)
       }
     })
@@ -79,12 +83,31 @@ export default function LeadsPage() {
     scheduleCallMutation.mutate(leadId)
   }
 
+  const handleStopLead = (leadId: string) => {
+    if (!confirm('Are you sure you want to stop this lead from calling?')) {
+      return
+    }
+
+    stopLeadMutation.mutate({ leadId, disposition: 'not_interested' })
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800'
       case 'in_progress': return 'bg-yellow-100 text-yellow-800'
       case 'done': return 'bg-green-100 text-green-800'
+      case 'stopped': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'new': return 'New'
+      case 'in_progress': return 'In Progress'
+      case 'done': return 'Done'
+      case 'stopped': return 'Stopped'
+      default: return status
     }
   }
 
@@ -145,12 +168,13 @@ export default function LeadsPage() {
           <select
             className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as 'new' | 'in_progress' | 'done' | 'all')}
+            onChange={(e) => setStatusFilter(e.target.value as 'new' | 'in_progress' | 'done' | 'stopped' | 'all')}
           >
             <option value="all">All Status</option>
             <option value="new">New</option>
             <option value="in_progress">In Progress</option>
             <option value="done">Done</option>
+            <option value="stopped">Stopped</option>
           </select>
           <select
             className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -167,19 +191,8 @@ export default function LeadsPage() {
         {showAddForm && (
           <div className="bg-white p-4 rounded-lg border">
             <h3 className="text-lg font-medium mb-4">Add New Lead</h3>
-            <div className="grid grid-cols-4 gap-4">
-              <Input
-                label="First Name"
-                value={newLead.first_name}
-                onChange={(e) => setNewLead(prev => ({ ...prev, first_name: e.target.value }))}
-                placeholder="Enter first name"
-              />
-              <Input
-                label="Phone Number"
-                value={newLead.phone}
-                onChange={(e) => setNewLead(prev => ({ ...prev, phone: e.target.value }))}
-                placeholder="+1234567890"
-              />
+            <div className="space-y-4">
+              {/* Step 1: Agent Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Assign to Agent
@@ -195,7 +208,39 @@ export default function LeadsPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-end space-x-2">
+
+              {/* Step 2: Lead Details - Only show after agent is selected */}
+              {newLead.agent_id && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="First Name"
+                    value={newLead.first_name}
+                    onChange={(e) => setNewLead(prev => ({ ...prev, first_name: e.target.value }))}
+                    placeholder="Enter first name"
+                  />
+                  <PhoneInput
+                    label="Phone Number"
+                    value={newLead.phone}
+                    onChange={(value) => setNewLead(prev => ({ ...prev, phone: value }))}
+                    placeholder="+1234567890"
+                  />
+                  <Input
+                    label="Service Type"
+                    value={newLead.service_type}
+                    onChange={(e) => setNewLead(prev => ({ ...prev, service_type: e.target.value }))}
+                    placeholder="Enter service_type"
+                  />
+                  <Input
+                    label="Health Concern"
+                    value={newLead.health_concern}
+                    onChange={(e) => setNewLead(prev => ({ ...prev, health_concern: e.target.value }))}
+                    placeholder="Enter health_concern"
+                  />
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center space-x-2">
                 <Button onClick={handleAddLead} disabled={!newLead.first_name || !newLead.phone || !newLead.agent_id}>
                   Add Lead
                 </Button>
@@ -248,7 +293,7 @@ export default function LeadsPage() {
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
-                      {lead.status.replace('_', ' ')}
+                      {getStatusText(lead.status)}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -288,13 +333,26 @@ export default function LeadsPage() {
                         variant="outline" 
                         size="sm"
                         onClick={() => handleScheduleCall(lead.id)}
-                        disabled={lead.status === 'done' || lead.status === 'in_progress' || scheduleCallMutation.isPending}
+                        disabled={lead.status === 'done' || lead.status === 'in_progress' || lead.status === 'stopped' || scheduleCallMutation.isPending}
                       >
                         {scheduleCallMutation.isPending ? 'Scheduling...' : 
                          lead.status === 'done' ? 'Completed' : 
+                         lead.status === 'stopped' ? 'Stopped' :
                          lead.status === 'in_progress' ? 'In Progress' : 
                          'Schedule Now'}
                       </Button>
+                      {lead.status === 'in_progress' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleStopLead(lead.id)}
+                          disabled={stopLeadMutation.isPending}
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                        >
+                          <Square className="h-3 w-3 mr-1" />
+                          {stopLeadMutation.isPending ? 'Stopping...' : 'Stop'}
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

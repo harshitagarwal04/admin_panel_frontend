@@ -17,7 +17,7 @@ export const leadKeys = {
 // Get leads with filtering and caching
 export function useLeads(filters: {
   agent_id?: string
-  status_filter?: 'new' | 'in_progress' | 'done'
+  status_filter?: 'new' | 'in_progress' | 'done' | 'stopped'
   search?: string
   page?: number
   per_page?: number
@@ -79,7 +79,7 @@ export function useUpdateLead() {
       leadData: {
         first_name?: string
         phone_e164?: string
-        status?: 'new' | 'in_progress' | 'done'
+        status?: 'new' | 'in_progress' | 'done' | 'stopped'
         custom_fields?: Record<string, any>
         schedule_at?: string
         disposition?: string
@@ -175,6 +175,35 @@ export function useImportLeadsCSV() {
     onSuccess: () => {
       // Invalidate all lead lists to show imported leads
       queryClient.invalidateQueries({ queryKey: leadKeys.lists() })
+    }
+  })
+}
+
+// Stop lead mutation
+export function useStopLead() {
+  const queryClient = useQueryClient()
+  const { tokens } = useAuth()
+
+  return useMutation({
+    mutationFn: ({ leadId, disposition }: { leadId: string, disposition?: string }) => 
+      LeadAPI.stopLead(leadId, tokens?.access_token || '', disposition),
+    onMutate: async ({ leadId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: leadKeys.detail(leadId) })
+      
+      // Optimistically update lead status to stopped
+      queryClient.setQueryData(leadKeys.detail(leadId), (old: Lead) => 
+        old ? { ...old, status: 'stopped' as const } : old
+      )
+    },
+    onSuccess: (_, { leadId }) => {
+      // Invalidate related caches
+      queryClient.invalidateQueries({ queryKey: leadKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: leadKeys.detail(leadId) })
+    },
+    onError: (err, { leadId }) => {
+      // Invalidate to get correct state
+      queryClient.invalidateQueries({ queryKey: leadKeys.detail(leadId) })
     }
   })
 }

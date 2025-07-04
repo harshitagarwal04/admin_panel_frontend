@@ -7,7 +7,7 @@ interface LeadResponse {
   agent_id: string
   first_name: string
   phone_e164: string
-  status: 'new' | 'in_progress' | 'done'
+  status: 'new' | 'in_progress' | 'done' | 'stopped'
   custom_fields: Record<string, any>
   schedule_at: string
   attempts_count: number
@@ -34,7 +34,7 @@ interface CreateLeadRequest {
 interface UpdateLeadRequest {
   first_name?: string
   phone_e164?: string
-  status?: 'new' | 'in_progress' | 'done'
+  status?: 'new' | 'in_progress' | 'done' | 'stopped'
   custom_fields?: Record<string, any>
   schedule_at?: string
   disposition?: string
@@ -78,7 +78,7 @@ export class LeadAPI {
     accessToken: string,
     options: {
       agent_id?: string
-      status_filter?: 'new' | 'in_progress' | 'done'
+      status_filter?: 'new' | 'in_progress' | 'done' | 'stopped'
       search?: string
       page?: number
       per_page?: number
@@ -194,6 +194,26 @@ export class LeadAPI {
     }
 
     return response.json()
+  }
+
+  static async stopLead(leadId: string, accessToken: string, disposition?: string): Promise<Lead> {
+    const url = new URL(`${API_BASE_URL}/leads/${leadId}/stop`)
+    if (disposition) {
+      url.searchParams.append('disposition', disposition)
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to stop lead')
+    }
+
+    const data: LeadResponse = await response.json()
+    return this.transformLeadResponse(data)
   }
 
   private static transformLeadResponse(data: LeadResponse): Lead {

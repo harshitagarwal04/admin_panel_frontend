@@ -61,7 +61,7 @@ export interface Lead {
   agent_id: string
   first_name: string
   phone_e164: string
-  status: 'new' | 'in_progress' | 'done'
+  status: 'new' | 'in_progress' | 'done' | 'stopped'
   custom_fields: Record<string, any>
   schedule_at: string
   attempts_count: number
