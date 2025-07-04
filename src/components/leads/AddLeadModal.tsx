@@ -19,18 +19,14 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
   const [newLead, setNewLead] = useState({
     first_name: '',
     phone: '',
-    agent_id: '',
-    service_type: '',
-    health_concern: ''
+    agent_id: ''
   });
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
 
-  // Get selected agent's variables (exclude hardcoded fields)
+  // Get selected agent's variables
   const selectedAgent = agents.find((a) => a.id === newLead.agent_id);
   const allAgentVariables: string[] = selectedAgent?.variables ? Object.keys(selectedAgent.variables) : [];
-  const agentVariables = allAgentVariables.filter(variable => 
-    !['service_type', 'health_concern'].includes(variable)
-  );
+  const agentVariables = allAgentVariables;
 
   // Phone number validation
   const isValidPhone = (phone: string): boolean => {
@@ -71,15 +67,9 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
       first_name: newLead.first_name,
       phone_e164: newLead.phone,
       custom_fields: {
-        // Include all agent variables (including duplicates)
+        // Include all agent variables
         ...allAgentVariables.reduce((acc, key) => {
-          if (key === 'service_type') {
-            acc[key] = newLead.service_type || '';
-          } else if (key === 'health_concern') {
-            acc[key] = newLead.health_concern || '';
-          } else {
-            acc[key] = variableValues[key] || '';
-          }
+          acc[key] = variableValues[key] || '';
           return acc;
         }, {} as Record<string, string>),
       },
@@ -93,9 +83,7 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
     setNewLead({
       first_name: '',
       phone: '',
-      agent_id: '',
-      service_type: '',
-      health_concern: ''
+      agent_id: ''
     });
     setVariableValues({});
     onClose();
@@ -141,21 +129,6 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
                 value={newLead.phone}
                 onChange={(value) => setNewLead((prev) => ({ ...prev, phone: value }))}
                 placeholder="Enter phone number"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Service Type"
-                value={newLead.service_type}
-                onChange={(e) => setNewLead((prev) => ({ ...prev, service_type: e.target.value }))}
-                placeholder="Enter service type"
-              />
-              <Input
-                label="Health Concern"
-                value={newLead.health_concern}
-                onChange={(e) => setNewLead((prev) => ({ ...prev, health_concern: e.target.value }))}
-                placeholder="Enter health concern"
               />
             </div>
 
