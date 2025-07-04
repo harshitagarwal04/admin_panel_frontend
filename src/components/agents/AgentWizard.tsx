@@ -11,6 +11,7 @@ import { whatsappStore } from '@/lib/whatsapp-frontend-store'
 import { useVoices } from '@/hooks/useAgents'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAuth } from '@/contexts/AuthContext'
+import toast from 'react-hot-toast'
 
 interface AgentWizardProps {
   isOpen: boolean
@@ -154,6 +155,25 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   }
 
   const handleNext = () => {
+    // Step 1 validation
+    if (currentStep === 1) {
+      if (!formData.name.trim()) {
+        setError('Agent name is required.')
+        return
+      }
+    }
+    // Step 2 validation
+    if (currentStep === 2) {
+      if (!formData.prompt.trim()) {
+        setError('Prompt is required.')
+        return
+      }
+      if (!formData.welcome_message.trim()) {
+        setError('Welcome message is required.')
+        return
+      }
+    }
+    setError(null)
     if (currentStep < 5) {
       setCurrentStep(currentStep + 1)
     }
