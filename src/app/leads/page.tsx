@@ -19,6 +19,7 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<'new' | 'in_progress' | 'done' | 'stopped' | 'all'>('all');
   const [agentFilter, setAgentFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [schedulingLeadId, setSchedulingLeadId] = useState<string | null>(null);
 
   // Use cached queries
   const { data: leadsData, isLoading: leadsLoading, error: leadsError } = useLeads({
@@ -59,7 +60,15 @@ export default function LeadsPage() {
   };
 
   const handleScheduleCall = (leadId: string) => {
-    scheduleCallMutation.mutate(leadId);
+    setSchedulingLeadId(leadId);
+    scheduleCallMutation.mutate(leadId, {
+      onSuccess: () => {
+        setSchedulingLeadId(null);
+      },
+      onError: () => {
+        setSchedulingLeadId(null);
+      }
+    });
   };
 
   const handleStopLead = (leadId: string) => {
@@ -245,9 +254,9 @@ export default function LeadsPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleScheduleCall(lead.id)}
-                            disabled={lead.status === 'done' || lead.status === 'in_progress' || lead.status === 'stopped' || scheduleCallMutation.isPending}
+                            disabled={lead.status === 'done' || lead.status === 'in_progress' || lead.status === 'stopped' || schedulingLeadId === lead.id}
                           >
-                            {scheduleCallMutation.isPending ? 'Scheduling...' :
+                            {schedulingLeadId === lead.id ? 'Scheduling...' :
                              lead.status === 'done' ? 'Completed' :
                              lead.status === 'stopped' ? 'Stopped' :
                              lead.status === 'in_progress' ? 'In Progress' :
