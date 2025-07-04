@@ -143,11 +143,23 @@ export function useScheduleCall() {
     onMutate: async (leadId) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: leadKeys.detail(leadId) })
+      await queryClient.cancelQueries({ queryKey: leadKeys.lists() })
       
-      // Optimistically update lead status to in_progress
+      // Optimistically update lead status to in_progress in detail cache
       queryClient.setQueryData(leadKeys.detail(leadId), (old: Lead) => 
         old ? { ...old, status: 'in_progress' as const } : old
       )
+      
+      // Optimistically update lead status in all list caches
+      queryClient.setQueriesData({ queryKey: leadKeys.lists() }, (old: any) => {
+        if (!old?.leads) return old
+        return {
+          ...old,
+          leads: old.leads.map((lead: Lead) => 
+            lead.id === leadId ? { ...lead, status: 'in_progress' as const } : lead
+          )
+        }
+      })
     },
     onSuccess: (_, leadId) => {
       // Invalidate related caches
