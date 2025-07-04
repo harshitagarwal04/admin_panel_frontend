@@ -192,15 +192,12 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
 
     try {
       // Only include voice AI fields for backend - WhatsApp is frontend-only
+      // Variables are derived internally by the backend, not passed from frontend
       const agentData = {
         name: formData.name,
         prompt: formData.prompt,
         welcome_message: formData.welcome_message,
         voice_id: formData.voice_id,
-        variables: selectedTemplate?.variables.reduce((acc, variable) => {
-          acc[variable] = `{{${variable}}}`
-          return acc
-        }, {} as Record<string, any>) || editingAgent?.variables || {},
         functions: selectedTemplate?.functions || editingAgent?.functions || [],
         inbound_phone: formData.inbound_phone || undefined,
         outbound_phone: formData.outbound_phone || undefined,

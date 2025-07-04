@@ -99,7 +99,8 @@ export default function AgentsPage() {
 
   const handleAgentUpdated = (updatedAgent: Agent) => {
     // Remove fields that should not be sent to the backend
-    const { id, company_id, created_at, updated_at, ...updatableFields } = updatedAgent
+    // Variables are derived internally by the backend
+    const { id, company_id, created_at, updated_at, variables, ...updatableFields } = updatedAgent
 
     updateAgentMutation.mutate(
       { agentId: updatedAgent.id, agentData: updatableFields },

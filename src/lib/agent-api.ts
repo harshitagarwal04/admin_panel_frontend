@@ -48,7 +48,6 @@ interface CreateAgentRequest {
   prompt: string
   welcome_message?: string
   voice_id?: string
-  variables?: Record<string, any>
   functions?: string[]
   inbound_phone?: string
   outbound_phone?: string
