@@ -12,6 +12,7 @@ import { CSVImport } from '@/components/leads/CSVImport';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead } from '@/hooks/useLeads';
 import { useAgents } from '@/hooks/useAgents';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function LeadsPage() {
   const [showCSVImport, setShowCSVImport] = useState(false);
@@ -55,6 +56,10 @@ export default function LeadsPage() {
     createLeadMutation.mutate(leadData, {
       onSuccess: () => {
         setShowAddModal(false);
+        toast.success('Lead added successfully!')
+      },
+      onError: (error: any) => {
+        toast.error(error?.message || 'Failed to add lead')
       }
     });
   };
@@ -64,15 +69,24 @@ export default function LeadsPage() {
     scheduleCallMutation.mutate(leadId, {
       onSuccess: () => {
         setSchedulingLeadId(null);
+        toast.success('Call scheduled successfully!')
       },
-      onError: () => {
+      onError: (error: any) => {
         setSchedulingLeadId(null);
+        toast.error(error?.message || 'Failed to schedule call')
       }
     });
   };
 
   const handleStopLead = (leadId: string) => {
-    stopLeadMutation.mutate({ leadId, disposition: 'not_interested' });
+    stopLeadMutation.mutate({ leadId, disposition: 'not_interested' }, {
+      onSuccess: () => {
+        toast.success('Lead stopped successfully!')
+      },
+      onError: (error: any) => {
+        toast.error(error?.message || 'Failed to stop lead')
+      }
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -112,6 +126,11 @@ export default function LeadsPage() {
   return (
     <ProtectedRoute>
       <Layout>
+        <Toaster position="top-right" toastOptions={{
+          style: { fontSize: '1rem' },
+          success: { style: { background: '#e6fffa', color: '#065f46' } },
+          error: { style: { background: '#fff1f2', color: '#b91c1c' } }
+        }} />
         <div className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
