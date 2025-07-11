@@ -23,8 +23,11 @@ import {
   Trash2,
   Plus,
   Eye,
-  EyeOff
+  EyeOff,
+  Key,
+  MoreHorizontal
 } from 'lucide-react'
+import { Fragment, useRef } from 'react'
 
 interface WebhookConfig {
   id: string
@@ -58,7 +61,7 @@ interface UsageStats {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'profile' | 'support' | 'usage'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'support' | 'usage' | 'api_keys'>('profile')
   const [aiDefaults, setAIDefaults] = useState<AIDefaults>({
     default_voice_id: '',
     business_hours_start: '09:00',
@@ -91,12 +94,27 @@ export default function SettingsPage() {
   })
   const [showWebhookForm, setShowWebhookForm] = useState(false)
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
-  const { user } = useAuth()
+  const { user, tokens } = useAuth()
+
+  // API Keys mock state
+  const [apiKeys, setApiKeys] = useState<Array<{ id: string; name: string; created_at: string; revealed?: boolean; realKey?: string }>>([])
+  const [apiKeysLoading, setApiKeysLoading] = useState(false)
+  const [apiKeysError, setApiKeysError] = useState<string | null>(null)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
+  const [loadingKeyId, setLoadingKeyId] = useState<string | null>(null)
+  const [showKeyModal, setShowKeyModal] = useState(false)
+  const [modalKeyName, setModalKeyName] = useState('')
+  const [creatingKey, setCreatingKey] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null)
 
   const tabs = [
     { id: 'profile', name: 'Profile', icon: User },
     { id: 'support', name: 'Support', icon: HelpCircle },
     { id: 'usage', name: 'Usage', icon: BarChart3 },
+    { id: 'api_keys', name: 'API Keys', icon: Key },
   ]
 
   const toggleSecretVisibility = (webhookId: string) => {
@@ -124,6 +142,44 @@ export default function SettingsPage() {
     if (percentage >= 75) return 'bg-yellow-500'
     return 'bg-green-500'
   }
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+  // Helper for headers
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (tokens?.access_token) headers['Authorization'] = `Bearer ${tokens.access_token}`
+    return headers
+  }
+  // Fetch API keys on mount
+  useEffect(() => {
+    async function fetchKeys() {
+      setApiKeysLoading(true)
+      setApiKeysError(null)
+      try {
+        const resFetch = await fetch(`${API_BASE}/auth/api-keys`, {
+          credentials: 'include',
+          headers: getAuthHeaders()
+        })
+        if (!resFetch.ok) throw new Error('Failed to fetch API keys')
+        const data = await resFetch.json()
+        setApiKeys(Array.isArray(data) ? data : data.api_keys || [])
+      } catch (e: any) {
+        setApiKeysError(e.message || 'Failed to fetch API keys')
+      } finally {
+        setApiKeysLoading(false)
+      }
+    }
+    fetchKeys()
+  }, [tokens?.access_token])
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handleClick(e: MouseEvent) {
+      setOpenMenuId(null)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [openMenuId])
 
   return (
     <ProtectedRoute>
@@ -282,7 +338,206 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+
+          {/* API Keys Tab */}
+          {activeTab === 'api_keys' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-6 flex items-center">
+                <Key className="h-5 w-5 mr-2 text-primary-600" /> API Keys
+              </h3>
+              <p className="text-gray-600 mb-4">Create and manage your API keys for programmatic access.</p>
+              <div className="mb-6">
+                <Button onClick={() => setShowKeyModal(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Generate Key
+                </Button>
+              </div>
+              {/* Toast */}
+              {toast && (
+                <div className="mb-4"><div className="bg-green-50 border border-green-200 text-green-800 rounded px-4 py-2 text-sm">{toast}</div></div>
+              )}
+              <div>
+                {apiKeysLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading API keys...</div>
+                ) : apiKeysError ? (
+                  <div className="text-center py-8 text-red-600">{apiKeysError}</div>
+                ) : apiKeys.length === 0 ? (
+                  <div className="text-gray-500 text-center py-8">No API keys created yet.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Key Value</TableHead>
+                        <TableHead>Created at</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {apiKeys.map(k => (
+                        <TableRow key={k.id}>
+                          <TableCell>{k.name}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              {k.revealed ? (
+                                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded select-all">{k.realKey}</span>
+                              ) : (
+                                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">•••••••••••••••••••</span>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!k.revealed) {
+                                    setLoadingKeyId(k.id)
+                                    try {
+                                      const resReveal = await fetch(`${API_BASE}/auth/api-keys/${k.id}`, {
+                                        credentials: 'include',
+                                        headers: getAuthHeaders()
+                                      })
+                                      if (!resReveal.ok) throw new Error('Failed to fetch key value')
+                                      const data = await resReveal.json()
+                                      setApiKeys(prev => prev.map(ak => ak.id === k.id ? { ...ak, revealed: true, realKey: data.key } : ak))
+                                    } catch (e: any) {
+                                      setToast(e.message || 'Failed to fetch key value')
+                                      setTimeout(() => setToast(null), 2000)
+                                    } finally {
+                                      setLoadingKeyId(null)
+                                    }
+                                  } else {
+                                    setApiKeys(prev => prev.map(ak => ak.id === k.id ? { ...ak, revealed: false, realKey: undefined } : ak))
+                                  }
+                                }}
+                                className="px-1"
+                                title={k.revealed ? 'Hide' : 'Reveal'}
+                              >
+                                {loadingKeyId === k.id ? (
+                                  <span className="animate-spin"><Eye className="h-4 w-4" /></span>
+                                ) : k.revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (k.revealed && k.realKey) {
+                                    await copyToClipboard(k.realKey)
+                                    setCopiedKeyId(k.id)
+                                    setTimeout(() => setCopiedKeyId(null), 1500)
+                                  }
+                                }}
+                                className="px-1"
+                                title={k.revealed ? 'Copy key' : 'Reveal to copy'}
+                              >
+                                {copiedKeyId === k.id ? 'Copied!' : <Copy className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>{new Date(k.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <div className="relative">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="px-2"
+                                title="More actions"
+                                onClick={() => setOpenMenuId(openMenuId === k.id ? null : k.id)}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                              {openMenuId === k.id && (
+                                <div className="absolute right-0 mt-2 w-32 bg-white border border-gray-200 rounded shadow-lg z-10">
+                                  <button
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                    disabled={deletingKeyId === k.id}
+                                    onClick={async () => {
+                                      setDeletingKeyId(k.id)
+                                      try {
+                                        const resDelete = await fetch(`${API_BASE}/auth/api-keys/${k.id}`, {
+                                          method: 'DELETE',
+                                          credentials: 'include',
+                                          headers: getAuthHeaders()
+                                        })
+                                        if (!resDelete.ok) throw new Error('Failed to delete API key')
+                                        setApiKeys(prev => prev.filter(key => key.id !== k.id))
+                                        setOpenMenuId(null)
+                                        setToast('Key deleted')
+                                        setTimeout(() => setToast(null), 2000)
+                                      } catch (e: any) {
+                                        setToast(e.message || 'Failed to delete key')
+                                        setTimeout(() => setToast(null), 2000)
+                                      } finally {
+                                        setDeletingKeyId(null)
+                                      }
+                                    }}
+                                  >
+                                    {deletingKeyId === k.id ? 'Deleting...' : 'Delete'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+              <div className="mt-6 text-xs text-gray-500">
+                <p>Keep your API keys secure. Keys are shown only once when created. Delete and re-generate if compromised.</p>
+              </div>
+            </div>
+          )}
         </div>
+        {/* Key Modal */}
+        {showKeyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+              <h4 className="text-lg font-medium mb-4 flex items-center"><Key className="h-4 w-4 mr-2 text-primary-600" /> Create API Key</h4>
+              <form
+                onSubmit={async e => {
+                  e.preventDefault()
+                  if (!modalKeyName.trim()) return
+                  setCreatingKey(true)
+                  try {
+                    const resCreate = await fetch(`${API_BASE}/auth/api-keys`, {
+                      method: 'POST',
+                      headers: getAuthHeaders(),
+                      credentials: 'include',
+                      body: JSON.stringify({ name: modalKeyName })
+                    })
+                    if (!resCreate.ok) throw new Error('Failed to create API key')
+                    const data = await resCreate.json()
+                    setApiKeys(prev => [data, ...prev])
+                    setShowKeyModal(false)
+                    setModalKeyName('')
+                    setToast('Key created')
+                    setTimeout(() => setToast(null), 2000)
+                  } catch (e: any) {
+                    setToast(e.message || 'Failed to create key')
+                    setTimeout(() => setToast(null), 2000)
+                  } finally {
+                    setCreatingKey(false)
+                  }
+                }}
+                className="space-y-4"
+              >
+                <Input
+                  label="Key Name"
+                  placeholder="e.g. My App"
+                  value={modalKeyName}
+                  onChange={e => setModalKeyName(e.target.value)}
+                  className="w-full"
+                  autoFocus
+                />
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" type="button" onClick={() => { setShowKeyModal(false); setModalKeyName('') }} disabled={creatingKey}>Cancel</Button>
+                  <Button type="submit" disabled={!modalKeyName.trim() || creatingKey}>
+                    {creatingKey ? 'Creating...' : 'Create Key'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </Layout>
     </ProtectedRoute>
   )

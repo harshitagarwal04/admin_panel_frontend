@@ -12,6 +12,7 @@ import { useVoices } from '@/hooks/useAgents'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useAuth } from '@/contexts/AuthContext'
 import toast from 'react-hot-toast'
+import { extractCombinedVariables, extractVariables } from '@/lib/utils'
 
 interface AgentWizardProps {
   isOpen: boolean
@@ -29,6 +30,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [extractedVariables, setExtractedVariables] = useState<string[]>([])
   
   const { tokens } = useAuth()
   
@@ -96,6 +98,10 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
         max_call_duration_minutes: editingAgent.max_call_duration_minutes
       })
       
+      // Extract variables from existing agent's prompt and welcome message
+      const existingVariables = extractCombinedVariables(editingAgent.prompt, editingAgent.welcome_message)
+      setExtractedVariables(existingVariables)
+      
       // Reset step to 1 when editing (in case modal was left on different step)
       setCurrentStep(1)
     }
@@ -114,6 +120,12 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       setFormData(prev => ({ ...prev, voice_id: voices[0].id }))
     }
   }, [voices, formData.voice_id, editingAgent])
+
+  // Real-time variable extraction
+  useEffect(() => {
+    const variables = extractCombinedVariables(formData.prompt, formData.welcome_message)
+    setExtractedVariables(variables)
+  }, [formData.prompt, formData.welcome_message])
 
   const fetchCompanyData = async () => {
     if (!tokens?.access_token) return
@@ -141,6 +153,10 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
 
   const handleTemplateSelect = (template: TemplateResponse) => {
     setSelectedTemplate(template)
+    
+    // Extract variables from both prompt and welcome_message in template
+    const templateVariables = extractCombinedVariables(template.prompt, template.welcome_message)
+    
     setFormData(prev => ({
       ...prev,
       name: template.name,
@@ -152,6 +168,9 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
       business_hours_end: template.suggested_settings.business_hours_end || '17:00',
       max_call_duration_minutes: template.suggested_settings.max_call_duration_minutes || 20
     }))
+    
+    // Update extracted variables immediately
+    setExtractedVariables(templateVariables)
   }
 
   const handleNext = () => {
@@ -211,13 +230,19 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     setError(null)
 
     try {
+      // Create variables object from extracted variables
+      const variablesObject = extractedVariables.reduce((acc, variable) => {
+        acc[variable] = '' // Initialize with empty string, will be filled by backend
+        return acc
+      }, {} as Record<string, any>)
+
       // Only include voice AI fields for backend - WhatsApp is frontend-only
-      // Variables are derived internally by the backend, not passed from frontend
       const agentData = {
         name: formData.name,
         prompt: formData.prompt,
         welcome_message: formData.welcome_message,
         voice_id: formData.voice_id,
+        variables: variablesObject, // Include the extracted variables
         functions: selectedTemplate?.functions || editingAgent?.functions || [],
         inbound_phone: formData.inbound_phone || undefined,
         outbound_phone: formData.outbound_phone || undefined,
@@ -338,25 +363,45 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
-                        {filteredTemplates.map((template) => (
-                          <div
-                            key={template.id}
-                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                              selectedTemplate?.id === template.id
-                                ? 'border-primary-500 bg-primary-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                            onClick={() => handleTemplateSelect(template)}
-                          >
-                            <div className="font-medium">{template.name}</div>
-                            <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
-                            {template.suggested_settings.max_call_duration_minutes && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                {template.suggested_settings.max_call_duration_minutes} min calls, {template.suggested_settings.max_attempts || 3} attempts
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                        {filteredTemplates.map((template) => {
+                          // Extract variables from both prompt and welcome_message for preview
+                          const templateVariables = extractCombinedVariables(template.prompt, template.welcome_message)
+                          
+                          return (
+                            <div
+                              key={template.id}
+                              className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                                selectedTemplate?.id === template.id
+                                  ? 'border-primary-500 bg-primary-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                              onClick={() => handleTemplateSelect(template)}
+                            >
+                              <div className="font-medium">{template.name}</div>
+                              <div className="text-sm text-gray-600">{template.industry} - {template.use_case}</div>
+                              {template.suggested_settings.max_call_duration_minutes && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {template.suggested_settings.max_call_duration_minutes} min calls, {template.suggested_settings.max_attempts || 3} attempts
+                                </div>
+                              )}
+                              {templateVariables.length > 0 && (
+                                <div className="mt-2">
+                                  <div className="text-xs font-medium text-gray-700 mb-1">Variables:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {templateVariables.map((variable) => (
+                                      <span
+                                        key={variable}
+                                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                      >
+                                        {variable}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -385,7 +430,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
                 className="w-full h-32 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 value={formData.prompt}
                 onChange={(e) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
-                placeholder="Enter the AI prompt for your agent..."
+                placeholder="Enter the AI prompt for your agent... Use {{variable}} syntax for dynamic content"
               />
             </div>
             <div>
@@ -396,8 +441,43 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
                 className="w-full h-20 p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 value={formData.welcome_message}
                 onChange={(e) => setFormData(prev => ({ ...prev, welcome_message: e.target.value }))}
-                placeholder="Enter the welcome message..."
+                placeholder="Enter the welcome message... Use {{variable}} syntax for dynamic content"
               />
+            </div>
+            
+            {/* Real-time Variables Display */}
+            {extractedVariables.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <h4 className="text-sm font-medium text-blue-900 mb-2">
+                  📋 Detected Variables ({extractedVariables.length})
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {extractedVariables.map((variable) => (
+                    <span
+                      key={variable}
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    >
+                      {variable}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-blue-700 mt-2">
+                  These variables will be available when creating leads and can be filled with dynamic content.
+                </p>
+              </div>
+            )}
+            
+            {/* Variable Usage Guide */}
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">
+                💡 Variable Usage Guide
+              </h4>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>• Use <code className="bg-gray-200 px-1 rounded">{`{{name}}`}</code> for lead's name</p>
+                <p>• Use <code className="bg-gray-200 px-1 rounded">{`{{company}}`}</code> for company name</p>
+                <p>• Use <code className="bg-gray-200 px-1 rounded">{`{{service_type}}`}</code> for service type</p>
+                <p>• Variables are automatically detected and will be available when creating leads</p>
+              </div>
             </div>
           </div>
         )
@@ -1012,6 +1092,7 @@ export function AgentWizard({ isOpen, onClose, onComplete, editingAgent }: Agent
     setCurrentStep(1)
     setSelectedTemplate(null)
     setSelectedUseCase('')
+    setExtractedVariables([])
     setFormData({
       name: '',
       prompt: '',

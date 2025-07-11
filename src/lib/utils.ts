@@ -30,3 +30,41 @@ export function formatDate(dateString: string): string {
     minute: '2-digit'
   })
 }
+
+/**
+ * Extract variables from text using {{variable}} syntax
+ * @param text - The text to extract variables from
+ * @returns Array of unique variable names found in the text
+ */
+export function extractVariables(text: string): string[] {
+  if (!text) return []
+  
+  // Match {{variable}} pattern, allowing for nested objects like {{user.name}}
+  const variableRegex = /\{\{([^}]+)\}\}/g
+  const matches = text.match(variableRegex)
+  
+  if (!matches) return []
+  
+  // Extract variable names and remove duplicates
+  const variables = matches
+    .map(match => match.slice(2, -2).trim()) // Remove {{ and }}
+    .filter(variable => variable.length > 0) // Filter out empty variables
+    .filter((variable, index, array) => array.indexOf(variable) === index) // Remove duplicates
+  
+  return variables.sort() // Sort alphabetically for consistent display
+}
+
+/**
+ * Extract variables from both prompt and welcome message
+ * @param prompt - The agent prompt text
+ * @param welcomeMessage - The welcome message text
+ * @returns Array of unique variable names found in both texts
+ */
+export function extractCombinedVariables(prompt: string, welcomeMessage: string): string[] {
+  const promptVariables = extractVariables(prompt)
+  const welcomeVariables = extractVariables(welcomeMessage)
+  
+  // Combine and remove duplicates
+  const allVariables = [...promptVariables, ...welcomeVariables]
+  return allVariables.filter((variable, index, array) => array.indexOf(variable) === index).sort()
+}
