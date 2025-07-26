@@ -199,6 +199,137 @@ export class AgentAPI {
     }))
   }
 
+  // Agent Wizard specific methods
+  static async createAgentWithConfiguration(agentData: any, accessToken: string): Promise<Agent> {
+    const response = await fetch(`${API_BASE_URL}/agents/create-with-configuration`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify(agentData),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to create agent with configuration')
+    }
+
+    const data: AgentResponse = await response.json()
+    return this.transformAgentResponse(data)
+  }
+
+  static async getWebsiteData(agentId: string, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/${agentId}/website-data`, {
+      method: 'GET',
+      headers: this.getAuthHeaders(accessToken),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to get website data')
+    }
+
+    return response.json()
+  }
+
+  static async scrapeWebsite(data: { website_url: string }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/scrape-website-wizard`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to scrape website')
+    }
+
+    return response.json()
+  }
+
+  static async generateFAQs(data: { content: string }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/generate-faqs-wizard`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to generate FAQs')
+    }
+
+    return response.json()
+  }
+
+  static async generateTasks(data: {
+    agent_id: string
+    transcript?: string
+    user_tasks: string[]
+    website_data: any
+    agent_role: string
+  }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/generate-tasks`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to generate tasks')
+    }
+
+    return response.json()
+  }
+
+  static async generateConversationFlow(data: {
+    agent_id: string
+    transcript?: string
+    tasks: string
+  }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/generate-conversation-flow`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to generate conversation flow')
+    }
+
+    return response.json()
+  }
+
+  static async updateFAQs(data: { agent_id: string; faqs: any[] }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/${data.agent_id}/faqs`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify({ faqs: data.faqs }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update FAQs')
+    }
+
+    return response.json()
+  }
+
+  static async updateTasks(data: { agent_id: string; tasks: string }, accessToken: string) {
+    const response = await fetch(`${API_BASE_URL}/agents/${data.agent_id}/tasks`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify({ tasks: data.tasks }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to update tasks')
+    }
+
+    return response.json()
+  }
+
   private static transformAgentResponse(data: AgentResponse): Agent {
     return {
       id: data.id,
