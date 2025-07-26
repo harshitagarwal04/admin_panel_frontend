@@ -22,6 +22,21 @@ export interface Company {
   updated_at: string
 }
 
+// Agent Basic Information - Only fields used in UI modal
+export interface AgentBasicInfo {
+  agent_name: string
+  intended_role: string
+  target_industry: string
+  company_name?: string
+  primary_service?: string
+  ultimate_goal?: string
+}
+
+// Simplified Agent Configuration - Only what's actually used
+export interface AgentConfiguration {
+  basic_info: AgentBasicInfo
+}
+
 export interface Agent {
   id: string
   company_id: string
@@ -52,6 +67,8 @@ export interface Agent {
     auto_reply_enabled?: boolean
     handoff_enabled?: boolean
   }
+  // New comprehensive configuration
+  configuration?: AgentConfiguration
   created_at: string
   updated_at: string
 }
@@ -112,5 +129,7 @@ export interface Voice {
   name: string
   gender: 'male' | 'female'
   language: string
+  country?: string
+  description?: string
   retell_voice_id: string
 }

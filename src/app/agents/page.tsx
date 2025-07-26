@@ -10,58 +10,8 @@ import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCirc
 import { AgentWizard } from '@/components/agents/AgentWizard'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
-import { useAgents, useVoices, useToggleAgentStatus, useCreateAgent, useUpdateAgent } from '@/hooks/useAgents'
-
-const mockAgents: Agent[] = [
-  {
-    id: '1',
-    company_id: '1',
-    name: 'Healthcare Lead Qualifier',
-    status: 'active',
-    prompt: 'You are a friendly healthcare assistant...',
-    variables: { service_type: 'consultation', health_concern: 'general' },
-    welcome_message: 'Hello! I\'m calling from HealthCare Corp...',
-    voice_id: 'us-english-female',
-    functions: ['check_calendar_availability', 'book_on_calendar', 'end_call'],
-    channels: ['voice', 'whatsapp'],
-    inbound_phone: '+1234567890',
-    outbound_phone: '+1234567890',
-    whatsapp_config: {
-      phone_number: '+1234567890',
-      auto_reply_enabled: true,
-      handoff_enabled: false
-    },
-    max_attempts: 5,
-    retry_delay_minutes: 60,
-    business_hours_start: '09:00',
-    business_hours_end: '17:00',
-    timezone: 'UTC',
-    max_call_duration_minutes: 15,
-    created_at: '2024-01-15T10:00:00Z',
-    updated_at: '2024-01-15T10:00:00Z'
-  },
-  {
-    id: '2',
-    company_id: '1',
-    name: 'Real Estate Appointment Setter',
-    status: 'inactive',
-    prompt: 'Hi, this is from Real Estate Pro...',
-    variables: { property_type: 'house', location: 'downtown' },
-    welcome_message: 'Hi! This is from Real Estate Pro...',
-    voice_id: 'us-english-male',
-    functions: ['check_calendar_availability', 'book_on_calendar', 'transfer_call'],
-    channels: ['voice'],
-    outbound_phone: '+1234567891',
-    max_attempts: 4,
-    retry_delay_minutes: 45,
-    business_hours_start: '08:00',
-    business_hours_end: '19:00',
-    timezone: 'UTC',
-    max_call_duration_minutes: 20,
-    created_at: '2024-01-15T11:00:00Z',
-    updated_at: '2024-01-15T11:00:00Z'
-  }
-]
+import { useAgents, useVoices, useToggleAgentStatus } from '@/hooks/useAgents'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function AgentsPage() {
   const [showWizard, setShowWizard] = useState(false)
@@ -69,12 +19,12 @@ export default function AgentsPage() {
   const [showWhatsAppConversations, setShowWhatsAppConversations] = useState(false)
   const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
   
+  const queryClient = useQueryClient()
+  
   // Use cached queries
   const { data: agentsData, isLoading: agentsLoading, error: agentsError } = useAgents()
   const { data: voicesData, isLoading: voicesLoading } = useVoices()
   const toggleStatusMutation = useToggleAgentStatus()
-  const createAgentMutation = useCreateAgent()
-  const updateAgentMutation = useUpdateAgent()
   
   const agents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
   const voices = voicesData ? voicesData.reduce((acc, voice) => {
@@ -89,27 +39,18 @@ export default function AgentsPage() {
     toggleStatusMutation.mutate(agentId)
   }
 
-  const handleAgentCreated = (newAgent: Agent) => {
-    createAgentMutation.mutate(newAgent, {
-      onSuccess: () => {
-        setShowWizard(false)
-      }
-    })
+  const handleAgentCreated = () => {
+    // Agent is already created by AgentWizard, just close the wizard
+    setShowWizard(false)
+    // Refresh the agents list to show the new agent
+    queryClient.invalidateQueries({ queryKey: ['agents'] })
   }
 
-  const handleAgentUpdated = (updatedAgent: Agent) => {
-    // Remove fields that should not be sent to the backend
-    // Variables are derived internally by the backend
-    const { id, company_id, created_at, updated_at, variables, ...updatableFields } = updatedAgent
-
-    updateAgentMutation.mutate(
-      { agentId: updatedAgent.id, agentData: updatableFields },
-      {
-        onSuccess: () => {
-          setEditingAgent(null)
-        }
-      }
-    )
+  const handleAgentUpdated = () => {
+    // Agent is already updated by AgentWizard, just close the wizard
+    setEditingAgent(null)
+    // Refresh the agents list to show the updated agent
+    queryClient.invalidateQueries({ queryKey: ['agents'] })
   }
 
   const handleEditAgent = (agent: Agent) => {
@@ -184,16 +125,9 @@ export default function AgentsPage() {
                       <div>
                         <div className="font-medium text-gray-900">{agent.name}</div>
                         <div className="flex items-center space-x-2 mt-1">
-                          {agent.channels?.includes('voice') && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Voice
-                            </span>
-                          )}
-                          {agent.channels?.includes('whatsapp') && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              WhatsApp
-                            </span>
-                          )}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Voice
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -244,15 +178,6 @@ export default function AgentsPage() {
                   </TableCell>
                   <TableCell className="py-4">
                     <div className="flex justify-end space-x-1">
-                      {agent.channels?.includes('whatsapp') && (
-                        <button 
-                          onClick={() => handleOpenWhatsAppConversations(agent)}
-                          className="p-1 text-gray-400 hover:text-green-600"
-                          title="WhatsApp Conversations"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                        </button>
-                      )}
                       <button 
                         onClick={() => handleEditAgent(agent)}
                         className="p-1 text-gray-400 hover:text-gray-600"
