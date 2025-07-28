@@ -59,6 +59,15 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
     );
   };
 
+  const resetForm = () => {
+    setNewLead({
+      first_name: '',
+      phone: '',
+      agent_id: ''
+    });
+    setVariableValues({});
+  };
+
   const handleSubmit = () => {
     if (!isFormValid()) return;
 
@@ -76,29 +85,25 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
     };
 
     onSubmit(leadData);
+    resetForm(); // Reset form after submission
   };
 
   const handleClose = () => {
     // Reset form when closing
-    setNewLead({
-      first_name: '',
-      phone: '',
-      agent_id: ''
-    });
-    setVariableValues({});
+    resetForm();
     onClose();
   };
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Add New Lead" size="lg">
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         {/* Step 1: Agent Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
             Assign to Agent
           </label>
           <select
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             value={newLead.agent_id}
             onChange={(e) => {
               setNewLead((prev) => ({ ...prev, agent_id: e.target.value }));
@@ -116,8 +121,8 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
 
         {/* Step 2: Lead Details - Only show after agent is selected */}
         {newLead.agent_id && (
-          <>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
               <Input
                 label="First Name"
                 value={newLead.first_name}
@@ -134,11 +139,11 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
 
             {/* Agent variables as inputs */}
             {agentVariables.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-gray-700">
                   Additional Information ({selectedAgent?.name})
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   {agentVariables.map((variable) => (
                     <Input
                       key={variable}
@@ -156,7 +161,7 @@ export function AddLeadModal({ isOpen, onClose, onSubmit, agents, isLoading }: A
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* Action buttons */}

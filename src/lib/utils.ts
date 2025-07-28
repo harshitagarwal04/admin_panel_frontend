@@ -68,3 +68,18 @@ export function extractCombinedVariables(prompt: string, welcomeMessage: string)
   const allVariables = [...promptVariables, ...welcomeVariables]
   return allVariables.filter((variable, index, array) => array.indexOf(variable) === index).sort()
 }
+
+/**
+ * Get timezone based on phone country code
+ * @param phone - Phone number with country code
+ * @returns Timezone string
+ */
+export function getTimezoneFromPhone(phone: string | undefined): string {
+  if (!phone) return 'Asia/Kolkata' // default
+  
+  if (phone.startsWith('+1')) return 'America/New_York'
+  if (phone.startsWith('+91')) return 'Asia/Kolkata'
+  if (phone.startsWith('+44')) return 'Europe/London'
+  
+  return 'Asia/Kolkata' // default fallback
+}
