@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Agent } from '@/types'
 import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCircle } from 'lucide-react'
 import { AgentWizard } from '@/components/agents/AgentWizard'
+import { TestAgentModal } from '@/components/agents/TestAgentModal'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
 import { useAgents, useVoices, useToggleAgentStatus } from '@/hooks/useAgents'
@@ -18,6 +19,8 @@ export default function AgentsPage() {
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [showWhatsAppConversations, setShowWhatsAppConversations] = useState(false)
   const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
+  const [testingAgent, setTestingAgent] = useState<Agent | null>(null)
+  const [showTestModal, setShowTestModal] = useState(false)
   
   const queryClient = useQueryClient()
   
@@ -60,6 +63,11 @@ export default function AgentsPage() {
   const handleOpenWhatsAppConversations = (agent: Agent) => {
     setSelectedAgentForWhatsApp(agent)
     setShowWhatsAppConversations(true)
+  }
+
+  const handleTestCall = (agent: Agent) => {
+    setTestingAgent(agent)
+    setShowTestModal(true)
   }
 
   return (
@@ -112,7 +120,7 @@ export default function AgentsPage() {
                 <TableHead className="font-medium text-gray-700 py-3">Agent Type</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Voice</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Phone</TableHead>
-                <TableHead className="font-medium text-gray-700 py-3">Edited by</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Edited at</TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -179,6 +187,14 @@ export default function AgentsPage() {
                   <TableCell className="py-4">
                     <div className="flex justify-end space-x-1">
                       <button 
+                        onClick={() => handleTestCall(agent)}
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded"
+                        title="Test Call"
+                      >
+                        <Phone className="h-4 w-4" />
+                        <span>Test</span>
+                      </button>
+                      <button 
                         onClick={() => handleEditAgent(agent)}
                         className="p-1 text-gray-400 hover:text-gray-600"
                         title="Edit Agent"
@@ -219,6 +235,22 @@ export default function AgentsPage() {
           }}
           agentId={selectedAgentForWhatsApp.id}
           agentName={selectedAgentForWhatsApp.name}
+        />
+      )}
+
+      {testingAgent && (
+        <TestAgentModal
+          isOpen={showTestModal}
+          onClose={() => {
+            setShowTestModal(false)
+            setTestingAgent(null)
+          }}
+          agent={testingAgent}
+          onSuccess={() => {
+            setShowTestModal(false)
+            setTestingAgent(null)
+          }}
+          testCallsRemaining={3}
         />
       )}
       </Layout>

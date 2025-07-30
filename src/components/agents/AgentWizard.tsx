@@ -484,7 +484,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
   
   // Business Configuration State (Page 3)
   const [inboundPhone, setInboundPhone] = useState<string>('')
-  const [outboundPhone, setOutboundPhone] = useState<string>('')
+  const [outboundPhone, setOutboundPhone] = useState<string>('+14846239963')
   
   // Preview panel state
   const [showPreview, setShowPreview] = useState(true)
@@ -1539,7 +1539,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       generated_faqs: []
     })
     setInboundPhone('')
-    setOutboundPhone('')
+    setOutboundPhone('+14846239963')
     setWelcomeMessage('')
     setTouchedFields(new Set())
     setFieldErrors({})
