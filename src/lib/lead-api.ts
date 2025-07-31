@@ -14,6 +14,9 @@ interface LeadResponse {
   disposition?: string
   created_at: string
   updated_at: string
+  is_verified?: boolean
+  verification_method?: 'otp' | null
+  verified_at?: string | null
 }
 
 interface LeadListResponse {
@@ -70,8 +73,8 @@ export class LeadAPI {
       throw new Error(error.detail || 'Failed to create lead')
     }
 
-    const data: LeadResponse = await response.json()
-    return this.transformLeadResponse(data)
+    const data = await response.json()
+    return this.transformLeadResponse(data as LeadResponse)
   }
 
   static async getLeads(
@@ -119,8 +122,8 @@ export class LeadAPI {
       throw new Error(error.detail || 'Failed to fetch lead')
     }
 
-    const data: LeadResponse = await response.json()
-    return this.transformLeadResponse(data)
+    const data = await response.json()
+    return this.transformLeadResponse(data as LeadResponse)
   }
 
   static async updateLead(
@@ -139,8 +142,8 @@ export class LeadAPI {
       throw new Error(error.detail || 'Failed to update lead')
     }
 
-    const data: LeadResponse = await response.json()
-    return this.transformLeadResponse(data)
+    const data = await response.json()
+    return this.transformLeadResponse(data as LeadResponse)
   }
 
   static async deleteLead(leadId: string, accessToken: string): Promise<{ message: string }> {
@@ -212,8 +215,50 @@ export class LeadAPI {
       throw new Error(error.detail || 'Failed to stop lead')
     }
 
-    const data: LeadResponse = await response.json()
-    return this.transformLeadResponse(data)
+    const data = await response.json()
+    return this.transformLeadResponse(data as LeadResponse)
+  }
+
+  static async requestVerification(leadId: string, accessToken: string): Promise<{
+    verification_id: string
+    message: string
+    expires_in_seconds: number
+  }> {
+    const response = await fetch(`${API_BASE_URL}/leads/${leadId}/request-verification`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to request verification')
+    }
+
+    return response.json()
+  }
+
+  static async verifyLead(
+    leadId: string,
+    verificationId: string,
+    otpCode: string,
+    accessToken: string
+  ): Promise<Lead> {
+    const response = await fetch(`${API_BASE_URL}/leads/${leadId}/verify`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(accessToken),
+      body: JSON.stringify({
+        verification_id: verificationId,
+        otp_code: otpCode
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'Failed to verify lead')
+    }
+
+    const data = await response.json()
+    return this.transformLeadResponse(data as LeadResponse)
   }
 
   private static transformLeadResponse(data: LeadResponse): Lead {
@@ -228,7 +273,10 @@ export class LeadAPI {
       attempts_count: data.attempts_count,
       disposition: data.disposition,
       created_at: data.created_at,
-      updated_at: data.updated_at
+      updated_at: data.updated_at,
+      is_verified: data.is_verified ?? false,
+      verification_method: data.verification_method ?? null,
+      verified_at: data.verified_at ?? null
     }
   }
 }
