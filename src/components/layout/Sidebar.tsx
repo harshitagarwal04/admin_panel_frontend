@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
+import { ContactSupport } from '@/components/ui/ContactSupport'
 import { 
   Bot, 
   Users, 
@@ -76,6 +77,7 @@ export function Sidebar() {
             </div>
           </div>
         )}
+        <ContactSupport />
         <button 
           onClick={handleLogout}
           disabled={isLoading}

@@ -219,3 +219,46 @@ export function useStopLead() {
     }
   })
 }
+
+// Request OTP verification mutation
+export function useRequestVerification() {
+  const { tokens } = useAuth()
+
+  return useMutation({
+    mutationFn: (leadId: string) => 
+      LeadAPI.requestVerification(leadId, tokens?.access_token || ''),
+  })
+}
+
+// Verify lead with OTP mutation
+export function useVerifyLead() {
+  const queryClient = useQueryClient()
+  const { tokens } = useAuth()
+
+  return useMutation({
+    mutationFn: ({ leadId, verificationId, otpCode }: { 
+      leadId: string, 
+      verificationId: string, 
+      otpCode: string 
+    }) => 
+      LeadAPI.verifyLead(leadId, verificationId, otpCode, tokens?.access_token || ''),
+    onSuccess: (verifiedLead) => {
+      // Update the lead in cache with verified status
+      queryClient.setQueryData(leadKeys.detail(verifiedLead.id), verifiedLead)
+      
+      // Update lead in all list caches
+      queryClient.setQueriesData({ queryKey: leadKeys.lists() }, (old: any) => {
+        if (!old?.leads) return old
+        return {
+          ...old,
+          leads: old.leads.map((lead: Lead) => 
+            lead.id === verifiedLead.id ? verifiedLead : lead
+          )
+        }
+      })
+      
+      // Invalidate to ensure consistency
+      queryClient.invalidateQueries({ queryKey: leadKeys.lists() })
+    }
+  })
+}

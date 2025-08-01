@@ -85,6 +85,9 @@ export interface Lead {
   disposition?: string
   created_at: string
   updated_at: string
+  is_verified?: boolean
+  verification_method?: 'otp' | null
+  verified_at?: string | null
 }
 
 export interface InteractionAttempt {
