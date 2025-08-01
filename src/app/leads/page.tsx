@@ -11,6 +11,7 @@ import { Plus, Upload, Search, Calendar, Phone, Clock, Square, CheckCircle2, Ale
 import { CSVImport } from '@/components/leads/CSVImport';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
 import { OTPVerificationModal } from '@/components/leads/OTPVerificationModal';
+import { VerificationRequiredModal } from '@/components/leads/VerificationRequiredModal';
 import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead, useRequestVerification, useVerifyLead } from '@/hooks/useLeads';
 import { useAgents } from '@/hooks/useAgents';
 import { useDemoStatus } from '@/hooks/useDemo';
@@ -25,6 +26,7 @@ export default function LeadsPage() {
   const [schedulingLeadId, setSchedulingLeadId] = useState<string | null>(null);
   const [verifyingLead, setVerifyingLead] = useState<{ id: string; verificationId: string; message: string; expiresIn: number } | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [showVerificationRequired, setShowVerificationRequired] = useState<{ leadId: string; phoneNumber: string } | null>(null);
 
   // Use cached queries
   const { data: leadsData, isLoading: leadsLoading, error: leadsError } = useLeads({
@@ -80,21 +82,8 @@ export default function LeadsPage() {
     
     // Check if verification is required
     if (isDemoAccount && requiresVerification && lead && !lead.is_verified) {
-      // Request verification first
-      requestVerificationMutation.mutate(leadId, {
-        onSuccess: (data) => {
-          setVerifyingLead({
-            id: leadId,
-            verificationId: data.verification_id,
-            message: data.message,
-            expiresIn: data.expires_in_seconds
-          });
-          setVerificationError(null);
-        },
-        onError: (error: any) => {
-          toast.error(error?.message || 'Failed to request verification');
-        }
-      });
+      // Show verification required popup first
+      setShowVerificationRequired({ leadId, phoneNumber: lead.phone_e164 });
       return;
     }
     
@@ -129,6 +118,29 @@ export default function LeadsPage() {
         } else {
           toast.error(error?.message || 'Failed to schedule call');
         }
+      }
+    });
+  };
+  
+  const handleVerificationRequired = () => {
+    if (!showVerificationRequired) return;
+    
+    const leadId = showVerificationRequired.leadId;
+    setShowVerificationRequired(null);
+    
+    // Request verification
+    requestVerificationMutation.mutate(leadId, {
+      onSuccess: (data) => {
+        setVerifyingLead({
+          id: leadId,
+          verificationId: data.verification_id,
+          message: data.message,
+          expiresIn: data.expires_in_seconds
+        });
+        setVerificationError(null);
+      },
+      onError: (error: any) => {
+        toast.error(error?.message || 'Failed to request verification');
       }
     });
   };
@@ -421,6 +433,15 @@ export default function LeadsPage() {
           agents={agents}
           isLoading={createLeadMutation.isPending}
         />
+        
+        {showVerificationRequired && (
+          <VerificationRequiredModal
+            isOpen={true}
+            onClose={() => setShowVerificationRequired(null)}
+            phoneNumber={showVerificationRequired.phoneNumber}
+            onVerify={handleVerificationRequired}
+          />
+        )}
         
         {verifyingLead && (
           <OTPVerificationModal
