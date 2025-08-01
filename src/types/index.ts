@@ -47,6 +47,7 @@ export interface Agent {
   welcome_message: string
   voice_id: string
   functions: string[]
+  region: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts: number

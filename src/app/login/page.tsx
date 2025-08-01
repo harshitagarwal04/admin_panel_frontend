@@ -92,7 +92,12 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter email address"
-                    onKeyPress={(e) => e.key === 'Enter' && handleTestLogin()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isLoading) {
+                        e.preventDefault()
+                        handleTestLogin()
+                      }
+                    }}
                   />
                   <Button 
                     onClick={handleTestLogin}

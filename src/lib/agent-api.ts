@@ -12,6 +12,7 @@ interface AgentResponse {
   status: 'active' | 'inactive'
   variables: Record<string, any>
   functions: string[]
+  region: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts: number
@@ -49,6 +50,7 @@ interface CreateAgentRequest {
   welcome_message?: string
   voice_id?: string
   functions?: string[]
+  region?: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts?: number
@@ -341,6 +343,7 @@ export class AgentAPI {
       welcome_message: data.welcome_message,
       voice_id: data.voice_id,
       functions: data.functions,
+      region: data.region, // Add region field
       inbound_phone: data.inbound_phone,
       outbound_phone: data.outbound_phone,
       max_attempts: data.max_attempts,

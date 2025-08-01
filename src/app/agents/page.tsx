@@ -12,7 +12,9 @@ import { TestAgentModal } from '@/components/agents/TestAgentModal'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
 import { useAgents, useVoices, useToggleAgentStatus } from '@/hooks/useAgents'
+import { useDemoStatus } from '@/hooks/useDemo'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 
 export default function AgentsPage() {
   const [showWizard, setShowWizard] = useState(false)
@@ -21,15 +23,32 @@ export default function AgentsPage() {
   const [selectedAgentForWhatsApp, setSelectedAgentForWhatsApp] = useState<Agent | null>(null)
   const [testingAgent, setTestingAgent] = useState<Agent | null>(null)
   const [showTestModal, setShowTestModal] = useState(false)
+  const [regionFilter, setRegionFilter] = useState<'all' | 'indian' | 'international'>('all')
   
   const queryClient = useQueryClient()
   
   // Use cached queries
   const { data: agentsData, isLoading: agentsLoading, error: agentsError } = useAgents()
   const { data: voicesData, isLoading: voicesLoading } = useVoices()
+  const { data: demoStatus } = useDemoStatus()
   const toggleStatusMutation = useToggleAgentStatus()
   
-  const agents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
+  const allAgents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
+  
+  // Debug: Log agent regions
+  if (allAgents.length > 0) {
+    console.log('=== AGENTS DATA FROM API ===')
+    allAgents.forEach(agent => {
+      console.log(`Agent ${agent.id} - Region: ${agent.region || 'UNDEFINED'}`)
+    })
+    console.log('Raw data:', agentsData?.agents)
+    console.log('===========================')
+  }
+  
+  const agents = allAgents.filter(agent => {
+    if (regionFilter === 'all') return true
+    return agent.region === regionFilter
+  })
   const voices = voicesData ? voicesData.reduce((acc, voice) => {
     acc[voice.id] = voice.name
     return acc
@@ -70,6 +89,18 @@ export default function AgentsPage() {
     setShowTestModal(true)
   }
 
+  const handleCreateAgent = () => {
+    // Check demo agent limit before opening wizard
+    if (demoStatus?.demo_mode && demoStatus?.agents_remaining === 0) {
+      toast.error(
+        `Demo agent limit reached (${demoStatus.agents_count}/${demoStatus.agents_limit} agents). Please upgrade to create more agents.`,
+        { duration: 5000 }
+      )
+      return
+    }
+    setShowWizard(true)
+  }
+
   return (
     <ProtectedRoute>
       <Layout>
@@ -79,6 +110,15 @@ export default function AgentsPage() {
             <h1 className="text-xl font-semibold text-gray-900">All Agents</h1>
           </div>
           <div className="flex items-center space-x-3">
+            <select
+              value={regionFilter}
+              onChange={(e) => setRegionFilter(e.target.value as 'all' | 'indian' | 'international')}
+              className="px-4 py-2 border border-gray-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option value="all">All Regions</option>
+              <option value="indian">Indian</option>
+              <option value="international">International</option>
+            </select>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -90,7 +130,11 @@ export default function AgentsPage() {
             <Button variant="outline">
               Import
             </Button>
-            <Button onClick={() => setShowWizard(true)} variant="dark">
+            <Button 
+              onClick={handleCreateAgent} 
+              variant="dark"
+              disabled={demoStatus?.demo_mode && demoStatus?.agents_remaining === 0}
+            >
               Create an Agent
             </Button>
           </div>
@@ -119,6 +163,7 @@ export default function AgentsPage() {
                 <TableHead className="font-medium text-gray-700 py-3">Agent Name</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Agent Type</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Voice</TableHead>
+                <TableHead className="font-medium text-gray-700 py-3">Region</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Phone</TableHead>
                 <TableHead className="font-medium text-gray-700 py-3">Edited at</TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -126,7 +171,9 @@ export default function AgentsPage() {
             </TableHeader>
             <TableBody>
               {agents.map((agent: Agent) => (
-                <TableRow key={agent.id} className="hover:bg-gray-50 border-b border-gray-100">
+                <TableRow 
+                  key={agent.id} 
+                  className="border-b border-gray-100 hover:bg-gray-50">
                   <TableCell className="py-4">
                     <div className="flex items-center space-x-3">
                       <div className={`w-3 h-3 rounded-full ${agent.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
@@ -159,6 +206,15 @@ export default function AgentsPage() {
                         </div>
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      agent.region === 'indian' 
+                        ? 'bg-orange-100 text-orange-800' 
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {agent.region === 'indian' ? 'IN' : 'INTL'}
+                    </span>
                   </TableCell>
                   <TableCell className="py-4">
                     {agent.outbound_phone ? (

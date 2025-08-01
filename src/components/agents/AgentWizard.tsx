@@ -485,6 +485,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
   // Business Configuration State (Page 3)
   const [inboundPhone, setInboundPhone] = useState<string>('')
   const [outboundPhone, setOutboundPhone] = useState<string>('+14846239963')
+  const [region, setRegion] = useState<'indian' | 'international'>('indian')
   
   // Preview panel state
   const [showPreview, setShowPreview] = useState(true)
@@ -617,6 +618,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       if (editingAgent.outbound_phone) {
         setOutboundPhone(editingAgent.outbound_phone)
       }
+      if (editingAgent.region) {
+        setRegion(editingAgent.region as 'indian' | 'international')
+      }
     }
     
     // Initialize static sections for prompt assembly (always set when component initializes)
@@ -690,10 +694,28 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     }
   }, [])
 
-
   const renderPage3_BusinessConfig = () => (
     <div className="space-y-5">
 
+      {/* Region Selection */}
+      <div>
+        <label htmlFor="region" className="block text-sm font-medium text-gray-700 mb-1">
+          Region
+        </label>
+        <select
+          id="region"
+          value={region}
+          onChange={(e) => setRegion(e.target.value as 'indian' | 'international')}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+          disabled={!!editingAgent}
+        >
+          <option value="indian">India</option>
+          <option value="international">International</option>
+        </select>
+        <p className="text-xs text-gray-500 mt-1">
+          {editingAgent ? 'Region cannot be changed after agent creation' : 'Select the region for your agent, Can\'t be changed later'}
+        </p>
+      </div>
 
       {/* Phone Numbers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -720,15 +742,17 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
             <Input
               id="outbound_phone"
               type="tel"
-              value="+14846239963"
+              value={region === 'indian' ? '' : "+14846239963"}
               onChange={(e) => setOutboundPhone(e.target.value)}
-              placeholder="+1 (555) 987-6543"
+              placeholder={region === 'indian' ? 'Currently Disabled' : "+1 (555) 987-6543"}
               className="w-full bg-gray-100 pr-10"
               disabled={true}
             />
-            <InlineInfoTooltip text="Contact support to change this number" />
+            <InlineInfoTooltip text={region === 'indian' ? 'Random Indian numbers will be used' : 'Contact support to have your own custom number'} />
           </div>
-          <p className="text-xs text-gray-500 mt-1">Phone number for outgoing calls</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {region === 'indian' ? '+91 Number managed by us' : 'Phone number for outgoing calls'}
+          </p>
         </div>
       </div>
     </div>
@@ -815,8 +839,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
           business_hours_end: '17:00',
           timezone: getTimezoneFromPhone(user?.phone),
         },
+        region: region,
         inbound_phone: inboundPhone || undefined,
-        outbound_phone: outboundPhone || undefined,
+        outbound_phone: region === 'indian' ? undefined : (outboundPhone || undefined),
         // Include website data for new agents from browser storage
         ...((!editingAgent && websiteData.isLoaded) ? { website_data: websiteData } : {})
       }

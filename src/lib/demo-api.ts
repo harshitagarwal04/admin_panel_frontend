@@ -13,6 +13,10 @@ export interface DemoStatus {
   demo_phone_number: string
   restrictions: string[]
   upgrade_available: boolean
+  // Agent limit fields
+  agents_count?: number
+  agents_limit?: number
+  agents_remaining?: number
 }
 
 export class DemoAPI {
