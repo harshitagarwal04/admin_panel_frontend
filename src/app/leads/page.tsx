@@ -155,22 +155,9 @@ export default function LeadsPage() {
     }, {
       onSuccess: () => {
         toast.success('Phone number verified successfully!');
-        const leadId = verifyingLead.id;
         setVerifyingLead(null);
         setVerificationError(null);
-        
-        // Schedule the call directly without re-checking verification
-        setSchedulingLeadId(leadId);
-        scheduleCallMutation.mutate(leadId, {
-          onSuccess: () => {
-            setSchedulingLeadId(null);
-            toast.success('Call scheduled successfully!')
-          },
-          onError: (error: any) => {
-            setSchedulingLeadId(null);
-            toast.error(error?.message || 'Failed to schedule call')
-          }
-        });
+        // Don't automatically schedule call - let user decide when to call
       },
       onError: (error: any) => {
         setVerificationError(error?.message || 'Verification failed');
@@ -324,25 +311,21 @@ export default function LeadsPage() {
                                 </span>
                               </div>
                             ) : (
-                              <div className="ml-2 group relative inline-flex">
-                                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                              <button
+                                onClick={() => setShowVerificationRequired({ leadId: lead.id, phoneNumber: lead.phone_e164 })}
+                                className="ml-2 group relative inline-flex focus:outline-none"
+                              >
+                                <AlertCircle className="h-4 w-4 text-yellow-600 hover:text-yellow-700 cursor-pointer" />
                                 <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                                  Phone verification required
+                                  Phone Verification Required on demo accounts
                                 </span>
-                              </div>
+                              </button>
                             )
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center mr-2">
-                            <span className="text-xs font-medium text-primary-800">
-                              {agentMap[lead.agent_id]?.charAt(0) || 'A'}
-                            </span>
-                          </div>
-                          <span className="text-sm font-medium">{agentMap[lead.agent_id] || 'Unknown Agent'}</span>
-                        </div>
+                        <span className="text-sm font-medium">{agentMap[lead.agent_id] || 'Unknown Agent'}</span>
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
@@ -376,12 +359,6 @@ export default function LeadsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
-                          {lead.status === 'in_progress' && (
-                            <div className="flex items-center text-blue-600">
-                              <Clock className="h-4 w-4 mr-1 animate-pulse" />
-                              <span className="text-xs">Calling...</span>
-                            </div>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"

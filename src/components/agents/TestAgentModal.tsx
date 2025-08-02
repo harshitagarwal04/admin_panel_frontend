@@ -8,7 +8,13 @@ import { Agent } from '@/types'
 import { Phone, User, AlertCircle, CheckCircle } from 'lucide-react'
 import { useTestCall } from '@/hooks/useTestCall'
 import { useVoices } from '@/hooks/useAgents'
+import { useRequestVerification, useVerifyLead } from '@/hooks/useLeads'
+import { VerificationRequiredModal } from '@/components/leads/VerificationRequiredModal'
+import { OTPVerificationModal } from '@/components/leads/OTPVerificationModal'
+import { useAuth } from '@/contexts/AuthContext'
 import toast from 'react-hot-toast'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://voice-ai-admin-api-762279639608.us-central1.run.app/api/v1'
 
 interface TestAgentModalProps {
   isOpen: boolean
@@ -28,9 +34,15 @@ export function TestAgentModal({
   const [firstName, setFirstName] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showVerificationRequired, setShowVerificationRequired] = useState(false)
+  const [verifyingPhone, setVerifyingPhone] = useState<{ leadId: string; verificationId: string; message: string; expiresIn: number } | null>(null)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
 
   const testCallMutation = useTestCall()
   const { data: voicesData } = useVoices()
+  const requestVerificationMutation = useRequestVerification()
+  const verifyLeadMutation = useVerifyLead()
+  const { tokens } = useAuth()
   
   const voices = voicesData ? voicesData.reduce((acc, voice) => {
     acc[voice.id] = voice.name
@@ -73,7 +85,13 @@ export function TestAgentModal({
       setFirstName('')
       setPhoneNumber('')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to initiate test call')
+      // Check if it's a verification required error
+      if (error.message && error.message.includes('Demo accounts can only call verified leads')) {
+        setShowVerificationRequired(true)
+        // Don't set verifyingPhone here - wait for user to click verify
+      } else {
+        toast.error(error.message || 'Failed to initiate test call')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -88,18 +106,90 @@ export function TestAgentModal({
     }
   }
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      size="sm"
-      title={
-        <div className="flex items-center gap-2">
-          <Phone className="h-5 w-5 text-blue-600" />
-          Test Agent Call
-        </div>
+  const handleVerificationRequired = async () => {
+    setShowVerificationRequired(false)
+    
+    // First create the lead, then request verification
+    try {
+      // Create a temporary lead for verification
+      const response = await fetch(`${API_BASE_URL}/leads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokens?.access_token}`
+        },
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          phone_e164: phoneNumber.trim(),
+          agent_id: agent.id,
+          custom_fields: { _is_test_call: true }
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to create lead')
+      
+      const lead = await response.json()
+      
+      // Request verification
+      requestVerificationMutation.mutate(lead.id, {
+        onSuccess: (data) => {
+          setVerifyingPhone({
+            leadId: lead.id,
+            verificationId: data.verification_id,
+            message: data.message,
+            expiresIn: data.expires_in_seconds
+          })
+          setVerificationError(null)
+        },
+        onError: (error: any) => {
+          toast.error(error?.message || 'Failed to request verification')
+        }
+      })
+    } catch (error) {
+      toast.error('Failed to create lead for verification')
+    }
+  }
+
+  const handleVerifyOTP = async (otp: string) => {
+    if (!verifyingPhone) return
+    
+    verifyLeadMutation.mutate(
+      { leadId: verifyingPhone.leadId, otpCode: otp, verificationId: verifyingPhone.verificationId },
+      {
+        onSuccess: () => {
+          toast.success('Phone verified successfully!')
+          setVerifyingPhone(null)
+          setVerificationError(null)
+          
+          // Retry the test call
+          handleSubmit(new Event('submit') as any)
+        },
+        onError: (error: any) => {
+          if (error?.message?.includes('expired')) {
+            setVerificationError('OTP has expired. Please request a new one.')
+          } else if (error?.message?.includes('Invalid')) {
+            setVerificationError('Invalid OTP. Please check and try again.')
+          } else {
+            setVerificationError(error?.message || 'Verification failed')
+          }
+        }
       }
-    >
+    )
+  }
+
+  return (
+    <>
+      <Modal
+        isOpen={isOpen && !showVerificationRequired && !verifyingPhone}
+        onClose={handleClose}
+        size="sm"
+        title={
+          <div className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-blue-600" />
+            Test Agent Call
+          </div>
+        }
+      >
       <div className="p-6">
         <div className="space-y-4">
           {/* Agent Info */}
@@ -219,5 +309,30 @@ export function TestAgentModal({
         </div>
       </div>
     </Modal>
+
+    {showVerificationRequired && (
+      <VerificationRequiredModal
+        isOpen={true}
+        onClose={() => setShowVerificationRequired(false)}
+        phoneNumber={phoneNumber}
+        onVerify={handleVerificationRequired}
+      />
+    )}
+    
+    {verifyingPhone && (
+      <OTPVerificationModal
+        isOpen={true}
+        onClose={() => {
+          setVerifyingPhone(null)
+          setVerificationError(null)
+        }}
+        message={verifyingPhone.message}
+        expiresIn={verifyingPhone.expiresIn}
+        onSubmit={handleVerifyOTP}
+        isLoading={verifyLeadMutation.isPending}
+        error={verificationError}
+      />
+    )}
+  </>
   )
 }

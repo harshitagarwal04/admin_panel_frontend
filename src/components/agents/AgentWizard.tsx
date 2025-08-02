@@ -629,13 +629,14 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
         notes: `##Notes
 - Be concise: 2-3 sentences max, don't introduce yourself again and again, use varied language, avoid repetition, and collect all necessary details before proceeding.
 - Be conversational: Use everyday language, making the chat feel friendly and casual, like talking to a friend.
+- Currency pronunciation: Always say currency amounts properly - "₹1000" should be spoken as "one thousand rupees", "$100" as "one hundred dollars", "€50" as "fifty euros". NEVER say "R.S.", "USD", "INR" or other abbreviations.
 - Steer the conversation back on track if it is veering off topic.
 - Confirm unclear information and collect all necessary details before taking action.
 - Never mention any internal functions or processes being called.
 - Use empathetic and calming language when dealing with distressed users. If at any time the customer shows anger or requests a human agent, call transfer_call function.
 - Use the user's name throughout the conversation to build rapport and provide reassurance.
 - When mentioning dates in the past, use relative phrasing like '2 days ago', 'one week ago'.
-- Remember what you are outputting is being spoken, so instead of '8:00 am' say 'eight am'. Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
+- Remember what you are outputting is being spoken, Say 6:45 am as "six forty-five" not "six colon forty-five" or "six four five am". Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
 - Only answer questions relevant to your role. If the user asks you to do tasks outside of your scope, politely refuse and redirect the conversation.
 - Never lie or make up information - accuracy is crucial for business success.`
     })
@@ -823,9 +824,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     setError(null)
 
     try {
-      // Append hidden language instructions for Hindi/Hinglish voices
+      // Prepend hidden language instructions for Hindi/Hinglish voices
       const hiddenInstructions = generateHiddenLanguageInstructions(selectedVoice, voices || [])
-      const promptWithHiddenInstructions = finalPrompt + hiddenInstructions
+      const promptWithHiddenInstructions = hiddenInstructions + finalPrompt
       
       // Send the full Gemini/manual prompt directly to backend
       const agentData = {

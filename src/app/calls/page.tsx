@@ -259,14 +259,7 @@ export default function CallsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center">
-                      <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center mr-2">
-                        <span className="text-xs font-medium text-primary-800">
-                          {call.agent_name?.charAt(0) || 'A'}
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium">{call.agent_name || 'Unknown Agent'}</span>
-                    </div>
+                    <span className="text-sm font-medium">{call.agent_name || 'Unknown Agent'}</span>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm font-medium">{call.lead_name || 'Unknown Lead'}</div>
