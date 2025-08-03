@@ -5,7 +5,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Agent, AgentConfiguration } from '@/types'
-import { ChevronLeft, ChevronRight, X, Eye, EyeOff, Pencil, RefreshCw, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Check, X } from 'lucide-react'
+import { FAQEditorModal } from './FAQEditorModal'
+import { TaskEditorModal } from './TaskEditorModal'
 import { useVoices } from '@/hooks/useAgents'
 import { useAuth } from '@/contexts/AuthContext'
 import { AgentAPI } from '@/lib/agent-api'
@@ -629,12 +631,11 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
         notes: `##Notes
 - Be concise: 2-3 sentences max, don't introduce yourself again and again, use varied language, avoid repetition, and collect all necessary details before proceeding.
 - Be conversational: Use everyday language, making the chat feel friendly and casual, like talking to a friend.
-- Currency pronunciation: Always say currency amounts properly - "₹1000" should be spoken as "one thousand rupees", "$100" as "one hundred dollars", "€50" as "fifty euros". NEVER say "R.S.", "USD", "INR" or other abbreviations.
 - Steer the conversation back on track if it is veering off topic.
 - Confirm unclear information and collect all necessary details before taking action.
 - Never mention any internal functions or processes being called.
 - Use empathetic and calming language when dealing with distressed users. If at any time the customer shows anger or requests a human agent, call transfer_call function.
-- Use the user's name throughout the conversation to build rapport and provide reassurance.
+- Use the user's name but not too muchthroughout the conversation to build rapport and provide reassurance.
 - When mentioning dates in the past, use relative phrasing like '2 days ago', 'one week ago'.
 - Remember what you are outputting is being spoken, Say 6:45 am as "six forty-five" not "six colon forty-five" or "six four five am". Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
 - Only answer questions relevant to your role. If the user asks you to do tasks outside of your scope, politely refuse and redirect the conversation.
@@ -941,6 +942,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
               >
                 <option value="" className="text-gray-400">Select Role</option>
                 <option value="Lead Qualification" className="text-gray-900">Lead Qualification</option>
+                <option value="Debt Collection" className="text-gray-900">Debt Collection</option>
               </select>
               {isFieldValid('intended_role') && (
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -1149,7 +1151,10 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
                           <RefreshCw className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setShowTaskEditor(true)}
+                          onClick={() => {
+                            setEditingTasks([...generatedTasks])
+                            setShowTaskEditor(true)
+                          }}
                           className="text-gray-500 hover:text-gray-700 transition-colors"
                           title="Edit Tasks"
                         >
@@ -1593,265 +1598,79 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     return []
   }, [generatedPrompt, generatedTasks])
 
-  // FAQ Editor Modal Component
-  const FAQEditorModal = memo(() => {
+  // FAQ save handler
+  const handleSaveFAQs = useCallback(async (updatedFAQs: FAQItem[]) => {
+    if (!tokens?.access_token) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    try {
+      setIsGenerating(true)
+      await AgentAPI.updateFAQs({
+        agent_id: editingAgent?.id || '',
+        faqs: updatedFAQs
+      }, tokens.access_token)
+      setGeneratedFAQs(updatedFAQs)
+      setEditingFAQs(updatedFAQs)
+      setShowFAQEditor(false)
+      toast.success('FAQs updated successfully!')
+    } catch (error) {
+      toast.error('Failed to update FAQs')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [tokens?.access_token, editingAgent?.id])
 
-    const handleSaveFAQs = async () => {
-      if (!tokens?.access_token) {
-        toast.error('Authentication required')
-        return
-      }
+  // Task save handler
+  const handleSaveTasks = useCallback(async (updatedTasks: TaskItem[]) => {
+    if (!tokens?.access_token) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    try {
+      setIsGenerating(true)
+      // Convert tasks back to string format for API
+      const tasksString = tasksToString(updatedTasks)
+      await AgentAPI.updateTasks({
+        agent_id: editingAgent?.id || '',
+        tasks: tasksString
+      }, tokens.access_token)
+      setGeneratedTasks(updatedTasks)
+      setEditingTasks(updatedTasks)
       
-      try {
-        setIsGenerating(true)
-        await AgentAPI.updateFAQs({
-          agent_id: editingAgent?.id || '',
-          faqs: editingFAQs
-        }, tokens.access_token)
-        setGeneratedFAQs(editingFAQs)
-        setShowFAQEditor(false)
-        toast.success('FAQs updated successfully!')
-      } catch (error) {
-        toast.error('Failed to update FAQs')
-      } finally {
-        setIsGenerating(false)
-      }
-    }
-
-    const handleAddFAQ = () => {
-      setEditingFAQs([...editingFAQs, { question: '', answer: '' }])
-    }
-
-    const handleDeleteFAQ = (index: number) => {
-      if (editingFAQs.length <= 5) {
-        toast.error('Must maintain at least 5 FAQs')
-        return
-      }
-      const newFAQs = editingFAQs.filter((_, i) => i !== index)
-      setEditingFAQs(newFAQs)
-    }
-
-    return (
-      <Modal 
-        isOpen={showFAQEditor} 
-        onClose={() => setShowFAQEditor(false)} 
-        title="Edit FAQs"
-        size="lg" 
-        zIndex={100}
-      >
-        <div className="p-6">
-          <p className="text-gray-600 mb-4">Edit the generated FAQ questions and answers below.</p>
-          
-          <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 mb-4">
-            {editingFAQs.map((faq, index) => (
-              <div key={index} className="group relative bg-gray-50 rounded-md p-2 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 font-medium text-sm mt-1">{index + 1}.</span>
-                  
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-600">Q:</span>
-                      <textarea
-                        value={faq.question}
-                        onChange={(e) => {
-                          const newFAQs = [...editingFAQs]
-                          newFAQs[index] = { ...newFAQs[index], question: e.target.value }
-                          setEditingFAQs(newFAQs)
-                        }}
-                        className="flex-1 p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none min-h-[40px]"
-                        placeholder="Enter question..."
-                      />
-                    </div>
-                    
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-medium text-gray-600">A:</span>
-                      <textarea
-                        value={faq.answer}
-                        onChange={(e) => {
-                          const newFAQs = [...editingFAQs]
-                          newFAQs[index] = { ...newFAQs[index], answer: e.target.value }
-                          setEditingFAQs(newFAQs)
-                        }}
-                        className="flex-1 p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none min-h-[50px]"
-                        placeholder="Enter answer..."
-                      />
-                    </div>
-                  </div>
-
-                  {editingFAQs.length > 5 && (
-                    <button
-                      onClick={() => handleDeleteFAQ(index)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                      title="Delete FAQ"
-                    >
-                      <X className="w-4 h-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <Button
-            variant="outline"
-            onClick={handleAddFAQ}
-            className="w-full border-dashed mb-4"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-lg">+</span>
-              Add FAQ
-            </span>
-          </Button>
-          
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowFAQEditor(false)}
-              disabled={isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveFAQs}
-              disabled={isGenerating}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isGenerating ? 'Saving...' : 'Save FAQs'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    )
-  })
-
-  // Task Editor Modal Component
-  const TaskEditorModal = memo(() => {
-
-    const handleSaveTasks = async () => {
-      if (!tokens?.access_token) {
-        toast.error('Authentication required')
-        return
-      }
+      // Update websiteData with the updated tasks string
+      setWebsiteData((prev: any) => ({
+        ...prev,
+        tasks: tasksString
+      }))
       
-      try {
-        setIsGenerating(true)
-        // Convert tasks back to string format for API
-        const tasksString = tasksToString(editingTasks)
-        await AgentAPI.updateTasks({
-          agent_id: editingAgent?.id || '',
-          tasks: tasksString
-        }, tokens.access_token)
-        setGeneratedTasks(editingTasks)
-        
-        // Update websiteData with the updated tasks string
-        setWebsiteData((prev: any) => ({
-          ...prev,
-          tasks: tasksString
-        }))
-        
-        setShowTaskEditor(false)
-        toast.success('Tasks updated successfully!')
-      } catch (error) {
-        toast.error('Failed to update tasks')
-      } finally {
-        setIsGenerating(false)
-      }
+      setShowTaskEditor(false)
+      toast.success('Tasks updated successfully!')
+    } catch (error) {
+      toast.error('Failed to update tasks')
+    } finally {
+      setIsGenerating(false)
     }
-
-    const handleAddTask = () => {
-      setEditingTasks([...editingTasks, { task: '' }])
-    }
-
-    const handleDeleteTask = (index: number) => {
-      if (editingTasks.length <= 3) {
-        toast.error('Must maintain at least 3 tasks')
-        return
-      }
-      const newTasks = editingTasks.filter((_, i) => i !== index)
-      setEditingTasks(newTasks)
-    }
-
-    return (
-      <Modal 
-        isOpen={showTaskEditor} 
-        onClose={() => setShowTaskEditor(false)} 
-        title="Edit Tasks"
-        size="lg" 
-        zIndex={100}
-      >
-        <div className="p-6">
-          <p className="text-gray-600 mb-4">Edit the generated tasks below.</p>
-          
-          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-4">
-            {editingTasks.map((task, index) => (
-              <div key={index} className="group relative bg-gray-50 rounded-md p-3 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 font-medium text-sm mt-1">{index + 1}.</span>
-                  
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      value={task.task}
-                      onChange={(e) => {
-                        const newTasks = [...editingTasks]
-                        newTasks[index] = { ...newTasks[index], task: e.target.value }
-                        setEditingTasks(newTasks)
-                      }}
-                      className="w-full p-2 text-sm font-medium border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter task title..."
-                    />
-                  </div>
-
-                  {editingTasks.length > 3 && (
-                    <button
-                      onClick={() => handleDeleteTask(index)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                      title="Delete Task"
-                    >
-                      <X className="w-4 h-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <Button
-            variant="outline"
-            onClick={handleAddTask}
-            className="w-full border-dashed mb-4"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-lg">+</span>
-              Add Task
-            </span>
-          </Button>
-          
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowTaskEditor(false)}
-              disabled={isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveTasks}
-              disabled={isGenerating}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isGenerating ? 'Saving...' : 'Save Tasks'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    )
-  })
+  }, [tokens?.access_token, editingAgent?.id])
 
   return (
     <>
-      <FAQEditorModal />
-      <TaskEditorModal />
+      <FAQEditorModal 
+        isOpen={showFAQEditor}
+        onClose={() => setShowFAQEditor(false)}
+        faqs={editingFAQs}
+        onSave={handleSaveFAQs}
+        isGenerating={isGenerating}
+      />
+      <TaskEditorModal 
+        isOpen={showTaskEditor}
+        onClose={() => setShowTaskEditor(false)}
+        tasks={editingTasks}
+        onSave={handleSaveTasks}
+        isGenerating={isGenerating}
+      />
       <ErrorBoundary>
       <Modal
         isOpen={isOpen}

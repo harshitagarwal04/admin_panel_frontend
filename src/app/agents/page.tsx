@@ -35,15 +35,6 @@ export default function AgentsPage() {
   
   const allAgents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
   
-  // Debug: Log agent regions
-  if (allAgents.length > 0) {
-    console.log('=== AGENTS DATA FROM API ===')
-    allAgents.forEach(agent => {
-      console.log(`Agent ${agent.id} - Region: ${agent.region || 'UNDEFINED'}`)
-    })
-    console.log('Raw data:', agentsData?.agents)
-    console.log('===========================')
-  }
   
   const agents = allAgents.filter(agent => {
     if (regionFilter === 'all') return true

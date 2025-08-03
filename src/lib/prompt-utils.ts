@@ -18,6 +18,7 @@ const useCaseRoles: Record<string, string> = {
   'Sales': 'friendly and consultative sales representative',
   'Appointment Scheduling': 'efficient and courteous scheduling coordinator',
   'Survey': 'engaging survey coordinator',
+  'Debt Collection': 'assertive yet cooperative collections specialist',
   'General': 'professional representative'
 }
 
@@ -76,7 +77,14 @@ export function generateHiddenLanguageInstructions(voiceId: string, voices: any[
   // Only add instructions for Hindi/Hinglish voices
   if (language !== 'Hinglish') return ''
   
-  let instructions = `
+  let instructions = `##INSTRUCTION FOR LLM OUTPUT:
+Always output currency amounts using "rupay" and write out numbers in words. Never use ₹, Rs., or digits for Indian currency.
+- For currency: Write "₹1000" as "ek hazaar rupay", "₹500" as "paanch sau rupay", "₹7,500" as "saat hazaar paanch sau rupay", "₹1,00,000" as "ek lakh rupay"
+- Avoid using the word "due" for payments. Instead, use "pending", "expected", or "bacha hua" to avoid TTS mispronunciation.
+- For time write digits in english format (e.g., "6:45" as "six forty-five", "3:00" as "three o'clock")
+- Don't write pure hindi as transcription use mix of english for hard hindi words to ensure proper TTS pronunciation.
+- Don't add unnecesary pauses for TTS pronunciation.
+CRITICAL: This ensures proper TTS pronunciation.
 
 IMPORTANT LANGUAGE INSTRUCTION:
 You are capable of speaking both English and Hinglish. Adapt your language based on how the user communicates:
@@ -86,18 +94,16 @@ You are capable of speaking both English and Hinglish. Adapt your language based
 - You can start with your natural Hinglish style, but switch to English if the user clearly prefers English
 
 HINGLISH STYLE GUIDE (when using Hinglish):
-Use Hinglish – a natural, conversational mix of Hindi and English. Feel free to code-switch within a sentence (e.g., "Appointment 3 baje pe rakha hai" , "Kya main aapko 3 baje call kar sakta hoon for a quick follow-up?" ). Mirror the user's ratio of Hindi↔English where possible.
+Use Hinglish – a natural, conversational mix of Hindi and English. Feel free to code-switch within a sentence (e.g., "Appointment 3 baje pe rakha hai" , "Kya main aapko 3 baje call kar sakta hoon for a quick follow-up?" ). Say mai instead of "I", "my" or "me" when speaking Hinglish
 
 GRAMMAR PRECISION:
 Hindi nouns have inherent gender that MUST be respected:
 - Masculine terms (use करना/होना/था): appointment, order, payment, plan
 - Feminine terms (use करनी/होनी/थी): meeting, booking, call, delivery, query
 - For time expressions: Use "pe" for "at" (e.g., "6:45 pe appointment", "3 baje pe meeting")
-- For currency: Say "₹1000" as "ek hazaar rupees", "₹500" as "paanch sau rupees",
 - NEVER say "appointment karni hai" (appointment is masculine)
 - NEVER say "meeting karna hai" (meeting is feminine)
-- NEVER say "six forty-five baje hai appointment" - instead say "six forty-five pe hoga appointment"
-- NEVER say "R.S." or "rupiya" - always say "rupees"`
+- NEVER say "six forty-five baje hai appointment" - instead say "six forty-five pe hoga appointment"`
 
   // Add voice-specific personality without duplicating language instructions
   if (voiceName === 'Hindi Man') {
@@ -112,6 +118,7 @@ Only use the customer name, agent name, or any other names explicitly provided i
 VOICE PERSONALITY: Speak with a female personality. Use feminine tone, style, and pronouns.
 When speaking in Hinglish, follow correct grammatical gender rules. When speaking in English, use standard English grammar. Do not change the gender of objects or nouns based on your persona.
 Only use the customer name, agent name, or any other names explicitly provided in the context. Do not make up or assume any names.
+
 `
   }
   

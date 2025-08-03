@@ -318,10 +318,10 @@ export class AgentAPI {
   }
 
   static async updateTasks(data: { agent_id: string; tasks: string }, accessToken: string) {
-    const response = await fetch(`${API_BASE_URL}/agents/${data.agent_id}/tasks`, {
+    const response = await fetch(`${API_BASE_URL}/agents/update-tasks`, {
       method: 'PUT',
       headers: this.getAuthHeaders(accessToken),
-      body: JSON.stringify({ tasks: data.tasks }),
+      body: JSON.stringify({ agent_id: data.agent_id, tasks: data.tasks }),
     })
 
     if (!response.ok) {
