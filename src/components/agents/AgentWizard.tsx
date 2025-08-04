@@ -5,7 +5,9 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Agent, AgentConfiguration } from '@/types'
-import { ChevronLeft, ChevronRight, X, Eye, EyeOff, Pencil, RefreshCw, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Check, X } from 'lucide-react'
+import { FAQEditorModal } from './FAQEditorModal'
+import { TaskEditorModal } from './TaskEditorModal'
 import { useVoices } from '@/hooks/useAgents'
 import { useAuth } from '@/contexts/AuthContext'
 import { AgentAPI } from '@/lib/agent-api'
@@ -484,7 +486,8 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
   
   // Business Configuration State (Page 3)
   const [inboundPhone, setInboundPhone] = useState<string>('')
-  const [outboundPhone, setOutboundPhone] = useState<string>('')
+  const [outboundPhone, setOutboundPhone] = useState<string>('+14846239963')
+  const [region, setRegion] = useState<'indian' | 'international'>('indian')
   
   // Preview panel state
   const [showPreview, setShowPreview] = useState(true)
@@ -617,6 +620,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       if (editingAgent.outbound_phone) {
         setOutboundPhone(editingAgent.outbound_phone)
       }
+      if (editingAgent.region) {
+        setRegion(editingAgent.region as 'indian' | 'international')
+      }
     }
     
     // Initialize static sections for prompt assembly (always set when component initializes)
@@ -629,9 +635,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
 - Confirm unclear information and collect all necessary details before taking action.
 - Never mention any internal functions or processes being called.
 - Use empathetic and calming language when dealing with distressed users. If at any time the customer shows anger or requests a human agent, call transfer_call function.
-- Use the user's name throughout the conversation to build rapport and provide reassurance.
+- Use the user's name but not too muchthroughout the conversation to build rapport and provide reassurance.
 - When mentioning dates in the past, use relative phrasing like '2 days ago', 'one week ago'.
-- Remember what you are outputting is being spoken, so instead of '8:00 am' say 'eight am'. Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
+- Remember what you are outputting is being spoken, Say 6:45 am as "six forty-five" not "six colon forty-five" or "six four five am". Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
 - Only answer questions relevant to your role. If the user asks you to do tasks outside of your scope, politely refuse and redirect the conversation.
 - Never lie or make up information - accuracy is crucial for business success.`
     })
@@ -690,10 +696,28 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     }
   }, [])
 
-
   const renderPage3_BusinessConfig = () => (
     <div className="space-y-5">
 
+      {/* Region Selection */}
+      <div>
+        <label htmlFor="region" className="block text-sm font-medium text-gray-700 mb-1">
+          Region
+        </label>
+        <select
+          id="region"
+          value={region}
+          onChange={(e) => setRegion(e.target.value as 'indian' | 'international')}
+          className="w-full p-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white"
+          disabled={!!editingAgent}
+        >
+          <option value="indian">India</option>
+          <option value="international">International</option>
+        </select>
+        <p className="text-xs text-gray-500 mt-1">
+          {editingAgent ? 'Region cannot be changed after agent creation' : 'Select the region for your agent, Can\'t be changed later'}
+        </p>
+      </div>
 
       {/* Phone Numbers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -720,15 +744,17 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
             <Input
               id="outbound_phone"
               type="tel"
-              value="+14846239963"
+              value={region === 'indian' ? '' : "+14846239963"}
               onChange={(e) => setOutboundPhone(e.target.value)}
-              placeholder="+1 (555) 987-6543"
+              placeholder={region === 'indian' ? 'Currently Disabled' : "+1 (555) 987-6543"}
               className="w-full bg-gray-100 pr-10"
               disabled={true}
             />
-            <InlineInfoTooltip text="Contact support to change this number" />
+            <InlineInfoTooltip text={region === 'indian' ? 'Random Indian numbers will be used' : 'Contact support to have your own custom number'} />
           </div>
-          <p className="text-xs text-gray-500 mt-1">Phone number for outgoing calls</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {region === 'indian' ? '+91 Number managed by us' : 'Phone number for outgoing calls'}
+          </p>
         </div>
       </div>
     </div>
@@ -799,9 +825,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     setError(null)
 
     try {
-      // Append hidden language instructions for Hindi/Hinglish voices
+      // Prepend hidden language instructions for Hindi/Hinglish voices
       const hiddenInstructions = generateHiddenLanguageInstructions(selectedVoice, voices || [])
-      const promptWithHiddenInstructions = finalPrompt + hiddenInstructions
+      const promptWithHiddenInstructions = hiddenInstructions + finalPrompt
       
       // Send the full Gemini/manual prompt directly to backend
       const agentData = {
@@ -815,8 +841,9 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
           business_hours_end: '17:00',
           timezone: getTimezoneFromPhone(user?.phone),
         },
+        region: region,
         inbound_phone: inboundPhone || undefined,
-        outbound_phone: outboundPhone || undefined,
+        outbound_phone: region === 'indian' ? undefined : (outboundPhone || undefined),
         // Include website data for new agents from browser storage
         ...((!editingAgent && websiteData.isLoaded) ? { website_data: websiteData } : {})
       }
@@ -915,6 +942,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
               >
                 <option value="" className="text-gray-400">Select Role</option>
                 <option value="Lead Qualification" className="text-gray-900">Lead Qualification</option>
+                <option value="Debt Collection" className="text-gray-900">Debt Collection</option>
               </select>
               {isFieldValid('intended_role') && (
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -1123,7 +1151,10 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
                           <RefreshCw className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => setShowTaskEditor(true)}
+                          onClick={() => {
+                            setEditingTasks([...generatedTasks])
+                            setShowTaskEditor(true)
+                          }}
                           className="text-gray-500 hover:text-gray-700 transition-colors"
                           title="Edit Tasks"
                         >
@@ -1143,11 +1174,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
                         </p>
                         <GenerateButton
                           onClick={() => {
-                            try {
-                              handleGenerateTasks()
-                            } catch (e: any) {
-                              toast.error('Error generating tasks')
-                            }
+                            handleGenerateTasks()
                           }}
                           isLoading={isGenerating}
                           text="Generate Tasks"
@@ -1297,6 +1324,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       
       toast.success('Website content analyzed and FAQs generated successfully!')
     } catch (error: any) {
+      console.error('Website analysis error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to analyze website'
         setError(errorMessage)
@@ -1360,6 +1388,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       
       toast.success('Tasks generated successfully!')
     } catch (error: any) {
+      console.error('Task generation error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to generate tasks'
         setError(errorMessage)
@@ -1404,6 +1433,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       setGeneratedConversationFlow(conversationResponse.conversation_flow)
       toast.success('Conversation flow generated successfully!')
     } catch (error: any) {
+      console.error('Conversation flow generation error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to generate conversation flow'
         setError(errorMessage)
@@ -1539,7 +1569,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       generated_faqs: []
     })
     setInboundPhone('')
-    setOutboundPhone('')
+    setOutboundPhone('+14846239963')
     setWelcomeMessage('')
     setTouchedFields(new Set())
     setFieldErrors({})
@@ -1567,265 +1597,79 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     return []
   }, [generatedPrompt, generatedTasks])
 
-  // FAQ Editor Modal Component
-  const FAQEditorModal = memo(() => {
+  // FAQ save handler
+  const handleSaveFAQs = useCallback(async (updatedFAQs: FAQItem[]) => {
+    if (!tokens?.access_token) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    try {
+      setIsGenerating(true)
+      await AgentAPI.updateFAQs({
+        agent_id: editingAgent?.id || '',
+        faqs: updatedFAQs
+      }, tokens.access_token)
+      setGeneratedFAQs(updatedFAQs)
+      setEditingFAQs(updatedFAQs)
+      setShowFAQEditor(false)
+      toast.success('FAQs updated successfully!')
+    } catch (error) {
+      toast.error('Failed to update FAQs')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [tokens?.access_token, editingAgent?.id])
 
-    const handleSaveFAQs = async () => {
-      if (!tokens?.access_token) {
-        toast.error('Authentication required')
-        return
-      }
+  // Task save handler
+  const handleSaveTasks = useCallback(async (updatedTasks: TaskItem[]) => {
+    if (!tokens?.access_token) {
+      toast.error('Authentication required')
+      return
+    }
+    
+    try {
+      setIsGenerating(true)
+      // Convert tasks back to string format for API
+      const tasksString = tasksToString(updatedTasks)
+      await AgentAPI.updateTasks({
+        agent_id: editingAgent?.id || '',
+        tasks: tasksString
+      }, tokens.access_token)
+      setGeneratedTasks(updatedTasks)
+      setEditingTasks(updatedTasks)
       
-      try {
-        setIsGenerating(true)
-        await AgentAPI.updateFAQs({
-          agent_id: editingAgent?.id || '',
-          faqs: editingFAQs
-        }, tokens.access_token)
-        setGeneratedFAQs(editingFAQs)
-        setShowFAQEditor(false)
-        toast.success('FAQs updated successfully!')
-      } catch (error) {
-        toast.error('Failed to update FAQs')
-      } finally {
-        setIsGenerating(false)
-      }
-    }
-
-    const handleAddFAQ = () => {
-      setEditingFAQs([...editingFAQs, { question: '', answer: '' }])
-    }
-
-    const handleDeleteFAQ = (index: number) => {
-      if (editingFAQs.length <= 5) {
-        toast.error('Must maintain at least 5 FAQs')
-        return
-      }
-      const newFAQs = editingFAQs.filter((_, i) => i !== index)
-      setEditingFAQs(newFAQs)
-    }
-
-    return (
-      <Modal 
-        isOpen={showFAQEditor} 
-        onClose={() => setShowFAQEditor(false)} 
-        title="Edit FAQs"
-        size="lg" 
-        zIndex={100}
-      >
-        <div className="p-6">
-          <p className="text-gray-600 mb-4">Edit the generated FAQ questions and answers below.</p>
-          
-          <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2 mb-4">
-            {editingFAQs.map((faq, index) => (
-              <div key={index} className="group relative bg-gray-50 rounded-md p-2 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 font-medium text-sm mt-1">{index + 1}.</span>
-                  
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-600">Q:</span>
-                      <textarea
-                        value={faq.question}
-                        onChange={(e) => {
-                          const newFAQs = [...editingFAQs]
-                          newFAQs[index] = { ...newFAQs[index], question: e.target.value }
-                          setEditingFAQs(newFAQs)
-                        }}
-                        className="flex-1 p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none min-h-[40px]"
-                        placeholder="Enter question..."
-                      />
-                    </div>
-                    
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-medium text-gray-600">A:</span>
-                      <textarea
-                        value={faq.answer}
-                        onChange={(e) => {
-                          const newFAQs = [...editingFAQs]
-                          newFAQs[index] = { ...newFAQs[index], answer: e.target.value }
-                          setEditingFAQs(newFAQs)
-                        }}
-                        className="flex-1 p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent resize-none min-h-[50px]"
-                        placeholder="Enter answer..."
-                      />
-                    </div>
-                  </div>
-
-                  {editingFAQs.length > 5 && (
-                    <button
-                      onClick={() => handleDeleteFAQ(index)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                      title="Delete FAQ"
-                    >
-                      <X className="w-4 h-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <Button
-            variant="outline"
-            onClick={handleAddFAQ}
-            className="w-full border-dashed mb-4"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-lg">+</span>
-              Add FAQ
-            </span>
-          </Button>
-          
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowFAQEditor(false)}
-              disabled={isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveFAQs}
-              disabled={isGenerating}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isGenerating ? 'Saving...' : 'Save FAQs'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    )
-  })
-
-  // Task Editor Modal Component
-  const TaskEditorModal = memo(() => {
-
-    const handleSaveTasks = async () => {
-      if (!tokens?.access_token) {
-        toast.error('Authentication required')
-        return
-      }
+      // Update websiteData with the updated tasks string
+      setWebsiteData((prev: any) => ({
+        ...prev,
+        tasks: tasksString
+      }))
       
-      try {
-        setIsGenerating(true)
-        // Convert tasks back to string format for API
-        const tasksString = tasksToString(editingTasks)
-        await AgentAPI.updateTasks({
-          agent_id: editingAgent?.id || '',
-          tasks: tasksString
-        }, tokens.access_token)
-        setGeneratedTasks(editingTasks)
-        
-        // Update websiteData with the updated tasks string
-        setWebsiteData((prev: any) => ({
-          ...prev,
-          tasks: tasksString
-        }))
-        
-        setShowTaskEditor(false)
-        toast.success('Tasks updated successfully!')
-      } catch (error) {
-        toast.error('Failed to update tasks')
-      } finally {
-        setIsGenerating(false)
-      }
+      setShowTaskEditor(false)
+      toast.success('Tasks updated successfully!')
+    } catch (error) {
+      toast.error('Failed to update tasks')
+    } finally {
+      setIsGenerating(false)
     }
-
-    const handleAddTask = () => {
-      setEditingTasks([...editingTasks, { task: '' }])
-    }
-
-    const handleDeleteTask = (index: number) => {
-      if (editingTasks.length <= 3) {
-        toast.error('Must maintain at least 3 tasks')
-        return
-      }
-      const newTasks = editingTasks.filter((_, i) => i !== index)
-      setEditingTasks(newTasks)
-    }
-
-    return (
-      <Modal 
-        isOpen={showTaskEditor} 
-        onClose={() => setShowTaskEditor(false)} 
-        title="Edit Tasks"
-        size="lg" 
-        zIndex={100}
-      >
-        <div className="p-6">
-          <p className="text-gray-600 mb-4">Edit the generated tasks below.</p>
-          
-          <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-4">
-            {editingTasks.map((task, index) => (
-              <div key={index} className="group relative bg-gray-50 rounded-md p-3 hover:bg-gray-100 transition-colors">
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 font-medium text-sm mt-1">{index + 1}.</span>
-                  
-                  <div className="flex-1 space-y-2">
-                    <input
-                      type="text"
-                      value={task.task}
-                      onChange={(e) => {
-                        const newTasks = [...editingTasks]
-                        newTasks[index] = { ...newTasks[index], task: e.target.value }
-                        setEditingTasks(newTasks)
-                      }}
-                      className="w-full p-2 text-sm font-medium border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter task title..."
-                    />
-                  </div>
-
-                  {editingTasks.length > 3 && (
-                    <button
-                      onClick={() => handleDeleteTask(index)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                      title="Delete Task"
-                    >
-                      <X className="w-4 h-4 text-red-500" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <Button
-            variant="outline"
-            onClick={handleAddTask}
-            className="w-full border-dashed mb-4"
-          >
-            <span className="flex items-center gap-2">
-              <span className="text-lg">+</span>
-              Add Task
-            </span>
-          </Button>
-          
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowTaskEditor(false)}
-              disabled={isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveTasks}
-              disabled={isGenerating}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isGenerating ? 'Saving...' : 'Save Tasks'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    )
-  })
+  }, [tokens?.access_token, editingAgent?.id])
 
   return (
     <>
-      <FAQEditorModal />
-      <TaskEditorModal />
+      <FAQEditorModal 
+        isOpen={showFAQEditor}
+        onClose={() => setShowFAQEditor(false)}
+        faqs={editingFAQs}
+        onSave={handleSaveFAQs}
+        isGenerating={isGenerating}
+      />
+      <TaskEditorModal 
+        isOpen={showTaskEditor}
+        onClose={() => setShowTaskEditor(false)}
+        tasks={editingTasks}
+        onSave={handleSaveTasks}
+        isGenerating={isGenerating}
+      />
       <ErrorBoundary>
       <Modal
         isOpen={isOpen}

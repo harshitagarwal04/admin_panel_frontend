@@ -7,12 +7,15 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table';
 import { Lead, Agent } from '@/types';
-import { Plus, Upload, Search, Calendar, Phone, Clock, Square } from 'lucide-react';
+import { Plus, Upload, Search, Calendar, Phone, Clock, Square, CheckCircle2, AlertCircle } from 'lucide-react';
 import { CSVImport } from '@/components/leads/CSVImport';
 import { AddLeadModal } from '@/components/leads/AddLeadModal';
-import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead } from '@/hooks/useLeads';
+import { OTPVerificationModal } from '@/components/leads/OTPVerificationModal';
+import { VerificationRequiredModal } from '@/components/leads/VerificationRequiredModal';
+import { useLeads, useCreateLead, useScheduleCall, useImportLeadsCSV, useStopLead, useRequestVerification, useVerifyLead } from '@/hooks/useLeads';
 import { useAgents } from '@/hooks/useAgents';
-import toast, { Toaster } from 'react-hot-toast';
+import { useDemoStatus } from '@/hooks/useDemo';
+import toast from 'react-hot-toast';
 
 export default function LeadsPage() {
   const [showCSVImport, setShowCSVImport] = useState(false);
@@ -21,6 +24,9 @@ export default function LeadsPage() {
   const [agentFilter, setAgentFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [schedulingLeadId, setSchedulingLeadId] = useState<string | null>(null);
+  const [verifyingLead, setVerifyingLead] = useState<{ id: string; verificationId: string; message: string; expiresIn: number } | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [showVerificationRequired, setShowVerificationRequired] = useState<{ leadId: string; phoneNumber: string } | null>(null);
 
   // Use cached queries
   const { data: leadsData, isLoading: leadsLoading, error: leadsError } = useLeads({
@@ -32,12 +38,19 @@ export default function LeadsPage() {
 
   const { data: agentsData, isLoading: agentsLoading } = useAgents();
   const agents = agentsData?.agents ? agentsData.agents.agents : [];
+  
+  // Check if demo account
+  const { data: demoStatus } = useDemoStatus();
+  const isDemoAccount = demoStatus?.demo_mode || false;
+  const requiresVerification = demoStatus?.verified_leads_only || false;
 
   // Mutations
   const createLeadMutation = useCreateLead();
   const scheduleCallMutation = useScheduleCall();
   const importCSVMutation = useImportLeadsCSV();
   const stopLeadMutation = useStopLead();
+  const requestVerificationMutation = useRequestVerification();
+  const verifyLeadMutation = useVerifyLead();
 
   const leads = leadsData?.leads || [];
   const loading = leadsLoading || agentsLoading;
@@ -64,7 +77,17 @@ export default function LeadsPage() {
     });
   };
 
-  const handleScheduleCall = (leadId: string) => {
+  const handleScheduleCall = async (leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    
+    // Check if verification is required
+    if (isDemoAccount && requiresVerification && lead && !lead.is_verified) {
+      // Show verification required popup first
+      setShowVerificationRequired({ leadId, phoneNumber: lead.phone_e164 });
+      return;
+    }
+    
+    // If no verification required or already verified, schedule the call
     setSchedulingLeadId(leadId);
     scheduleCallMutation.mutate(leadId, {
       onSuccess: () => {
@@ -73,7 +96,72 @@ export default function LeadsPage() {
       },
       onError: (error: any) => {
         setSchedulingLeadId(null);
-        toast.error(error?.message || 'Failed to schedule call')
+        
+        // Check if error is due to verification requirement
+        if (error?.message?.includes('must be verified')) {
+          // Request verification
+          requestVerificationMutation.mutate(leadId, {
+            onSuccess: (data) => {
+              setVerifyingLead({
+                id: leadId,
+                verificationId: data.verification_id,
+                message: data.message,
+                expiresIn: data.expires_in_seconds
+              });
+              setVerificationError(null);
+              toast('Phone verification required before calling', { icon: '📱' });
+            },
+            onError: (verifyError: any) => {
+              toast.error(verifyError?.message || 'Failed to request verification');
+            }
+          });
+        } else {
+          toast.error(error?.message || 'Failed to schedule call');
+        }
+      }
+    });
+  };
+  
+  const handleVerificationRequired = () => {
+    if (!showVerificationRequired) return;
+    
+    const leadId = showVerificationRequired.leadId;
+    setShowVerificationRequired(null);
+    
+    // Request verification
+    requestVerificationMutation.mutate(leadId, {
+      onSuccess: (data) => {
+        setVerifyingLead({
+          id: leadId,
+          verificationId: data.verification_id,
+          message: data.message,
+          expiresIn: data.expires_in_seconds
+        });
+        setVerificationError(null);
+      },
+      onError: (error: any) => {
+        toast.error(error?.message || 'Failed to request verification');
+      }
+    });
+  };
+  
+  const handleVerifyOTP = async (otp: string) => {
+    if (!verifyingLead) return;
+    
+    await verifyLeadMutation.mutateAsync({
+      leadId: verifyingLead.id,
+      verificationId: verifyingLead.verificationId,
+      otpCode: otp
+    }, {
+      onSuccess: () => {
+        toast.success('Phone number verified successfully!');
+        setVerifyingLead(null);
+        setVerificationError(null);
+        // Don't automatically schedule call - let user decide when to call
+      },
+      onError: (error: any) => {
+        setVerificationError(error?.message || 'Verification failed');
+        throw error; // Re-throw to be handled by modal
       }
     });
   };
@@ -126,11 +214,6 @@ export default function LeadsPage() {
   return (
     <ProtectedRoute>
       <Layout>
-        <Toaster position="top-right" toastOptions={{
-          style: { fontSize: '1rem' },
-          success: { style: { background: '#e6fffa', color: '#065f46' } },
-          error: { style: { background: '#fff1f2', color: '#b91c1c' } }
-        }} />
         <div className="space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -219,17 +302,30 @@ export default function LeadsPage() {
                         <div className="flex items-center">
                           <Phone className="h-3 w-3 mr-1 text-gray-400" />
                           {lead.phone_e164}
+                          {isDemoAccount && requiresVerification && (
+                            lead.is_verified ? (
+                              <div className="ml-2 group relative inline-flex">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                  Verified {lead.verified_at && `on ${new Date(lead.verified_at).toLocaleDateString()}`}
+                                </span>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowVerificationRequired({ leadId: lead.id, phoneNumber: lead.phone_e164 })}
+                                className="ml-2 group relative inline-flex focus:outline-none"
+                              >
+                                <AlertCircle className="h-4 w-4 text-yellow-600 hover:text-yellow-700 cursor-pointer" />
+                                <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                  Phone Verification Required on demo accounts
+                                </span>
+                              </button>
+                            )
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center mr-2">
-                            <span className="text-xs font-medium text-primary-800">
-                              {agentMap[lead.agent_id]?.charAt(0) || 'A'}
-                            </span>
-                          </div>
-                          <span className="text-sm font-medium">{agentMap[lead.agent_id] || 'Unknown Agent'}</span>
-                        </div>
+                        <span className="text-sm font-medium">{agentMap[lead.agent_id] || 'Unknown Agent'}</span>
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
@@ -263,12 +359,6 @@ export default function LeadsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
-                          {lead.status === 'in_progress' && (
-                            <div className="flex items-center text-blue-600">
-                              <Clock className="h-4 w-4 mr-1 animate-pulse" />
-                              <span className="text-xs">Calling...</span>
-                            </div>
-                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -320,6 +410,30 @@ export default function LeadsPage() {
           agents={agents}
           isLoading={createLeadMutation.isPending}
         />
+        
+        {showVerificationRequired && (
+          <VerificationRequiredModal
+            isOpen={true}
+            onClose={() => setShowVerificationRequired(null)}
+            phoneNumber={showVerificationRequired.phoneNumber}
+            onVerify={handleVerificationRequired}
+          />
+        )}
+        
+        {verifyingLead && (
+          <OTPVerificationModal
+            isOpen={true}
+            onClose={() => {
+              setVerifyingLead(null);
+              setVerificationError(null);
+            }}
+            message={verifyingLead.message}
+            expiresIn={verifyingLead.expiresIn}
+            onSubmit={handleVerifyOTP}
+            isLoading={verifyLeadMutation.isPending}
+            error={verificationError}
+          />
+        )}
       </Layout>
     </ProtectedRoute>
   );

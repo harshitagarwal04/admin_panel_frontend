@@ -22,6 +22,10 @@ export function DemoBanner() {
   }
 
   const getBannerConfig = (): BannerConfig => {
+    // Check if both agent and call limits are exhausted
+    const agentsExhausted = demoStatus.agents_remaining === 0
+    const callsExhausted = demoStatus.calls_remaining <= 0
+    
     // Global daily limit reached - highest priority
     if (demoStatus.global_calls_remaining <= 0) {
       return {
@@ -32,11 +36,31 @@ export function DemoBanner() {
       }
     }
     
-    // Company calls exhausted
-    if (demoStatus.calls_remaining <= 0) {
+    // Both limits exhausted
+    if (agentsExhausted && callsExhausted) {
       return {
         type: 'critical',
-        message: `🚫 Demo limit reached (${demoStatus.calls_made}/${demoStatus.calls_limit} calls used).`,
+        message: `🚫 Demo limits reached: ${demoStatus.agents_count}/${demoStatus.agents_limit} agents, ${demoStatus.calls_made}/${demoStatus.calls_limit} calls.`,
+        action: 'Upgrade to Continue',
+        icon: <X className="h-4 w-4" />
+      }
+    }
+    
+    // Agent limit exhausted
+    if (agentsExhausted) {
+      return {
+        type: 'critical',
+        message: `🤖 Agent limit reached (${demoStatus.agents_count}/${demoStatus.agents_limit} agents). Upgrade to create more.`,
+        action: 'Upgrade to Continue',
+        icon: <X className="h-4 w-4" />
+      }
+    }
+    
+    // Company calls exhausted
+    if (callsExhausted) {
+      return {
+        type: 'critical',
+        message: `🚫 Call limit reached (${demoStatus.calls_made}/${demoStatus.calls_limit} calls used).`,
         action: 'Upgrade to Continue',
         icon: <X className="h-4 w-4" />
       }
@@ -52,10 +76,24 @@ export function DemoBanner() {
       }
     }
     
-    // Normal demo mode
+    // Low agents warning
+    if (demoStatus.agents_remaining === 1) {
+      return {
+        type: 'warning',
+        message: `⚠️ Only 1 agent slot remaining! ${demoStatus.calls_remaining} calls left.`,
+        action: 'Upgrade Now',
+        icon: <AlertTriangle className="h-4 w-4" />
+      }
+    }
+    
+    // Normal demo mode - show both limits
+    const agentInfo = demoStatus.agents_limit ? `${demoStatus.agents_remaining}/${demoStatus.agents_limit} agents` : ''
+    const callInfo = `${demoStatus.calls_remaining}/${demoStatus.calls_limit} calls`
+    const separator = agentInfo && callInfo ? ', ' : ''
+    
     return {
       type: 'info',
-      message: `🎯 Demo Account: ${demoStatus.calls_remaining} of ${demoStatus.calls_limit} calls remaining`,
+      message: `🎯 Demo Account: ${agentInfo}${separator}${callInfo} remaining`,
       action: 'Upgrade Now',
       icon: <Target className="h-4 w-4" />
     }

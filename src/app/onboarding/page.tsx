@@ -118,6 +118,12 @@ export default function OnboardingPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     error={errors.name}
                     placeholder="Enter your full name"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isLoading) {
+                        e.preventDefault()
+                        handleNext()
+                      }
+                    }}
                   />
 
                   <Input
@@ -126,6 +132,12 @@ export default function OnboardingPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                     error={errors.phone}
                     placeholder="+1 (555) 123-4567"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isLoading) {
+                        e.preventDefault()
+                        handleNext()
+                      }
+                    }}
                   />
                 </div>
 
@@ -159,6 +171,12 @@ export default function OnboardingPage() {
                     onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
                     error={errors.company_name}
                     placeholder="Enter your company name"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isLoading) {
+                        e.preventDefault()
+                        handleSubmit()
+                      }
+                    }}
                   />
 
                   <div className="bg-blue-50 p-4 rounded-md">

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { AuthState, AuthUser, AuthTokens, OnboardingData } from '@/types/auth'
 import { AuthStorage } from '@/lib/auth-storage'
 import { AuthAPI } from '@/lib/auth-api'
@@ -30,6 +31,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [state, setState] = useState<AuthState>({
     user: null,
     tokens: null,
@@ -115,6 +117,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState(prev => ({ ...prev, isLoading: true, error: null }))
 
     try {
+      // Clear all React Query caches before login to prevent showing previous user's data
+      queryClient.clear()
+      
       // Try to determine if credential is a JWT token or email
       const isJWTToken = credential.includes('.') && credential.split('.').length === 3
       
@@ -145,7 +150,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(error instanceof Error ? error.message : 'Login failed')
       return false
     }
-  }, [setTokens, setUser, setError])
+  }, [setTokens, setUser, setError, queryClient])
 
   const completeOnboarding = useCallback(async (data: OnboardingData) => {
     const tokens = AuthStorage.getTokens()
@@ -178,6 +183,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     AuthStorage.clearAll()
+    
+    // Clear all React Query caches to prevent showing previous user's data
+    queryClient.clear()
+    
     setState({
       user: null,
       tokens: null,
@@ -188,13 +197,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Redirect to home page after logout
     router.push('/')
-  }, [router])
+  }, [router, queryClient])
 
   const initializeAuth = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }))
 
     const storedTokens = AuthStorage.getTokens()
-    const storedUser = AuthStorage.getUser()
 
     if (!storedTokens) {
       setState(prev => ({ ...prev, isLoading: false }))
@@ -202,8 +210,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      // Always fetch fresh user data to check profile completion status
-      const currentUser = await AuthAPI.getCurrentUser(storedTokens.access_token)
+      // Add timeout to prevent hanging in production
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+      )
+      
+      // Race between API call and timeout
+      const currentUser = await Promise.race([
+        AuthAPI.getCurrentUser(storedTokens.access_token),
+        timeoutPromise
+      ]) as AuthUser
+      
       setUser(currentUser)
       
       setState({

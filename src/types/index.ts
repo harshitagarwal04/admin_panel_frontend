@@ -47,6 +47,7 @@ export interface Agent {
   welcome_message: string
   voice_id: string
   functions: string[]
+  region: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts: number
@@ -85,6 +86,9 @@ export interface Lead {
   disposition?: string
   created_at: string
   updated_at: string
+  is_verified?: boolean
+  verification_method?: 'otp' | null
+  verified_at?: string | null
 }
 
 export interface InteractionAttempt {

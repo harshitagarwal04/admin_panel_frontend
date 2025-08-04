@@ -291,13 +291,18 @@ export default function SettingsPage() {
                       <Mail className="h-5 w-5 text-green-600 mr-2" />
                       <h4 className="font-medium">Email Support</h4>
                     </div>
-                    <p className="text-sm text-gray-600 mb-3">
+                    <p className="text-sm text-gray-600 mb-2">
                       Get help from our support team
                     </p>
-                    <Button variant="outline" size="sm">
-                      <Mail className="h-3 w-3 mr-1" />
-                      Contact Support
-                    </Button>
+                    <p className="text-sm font-medium text-gray-700 mb-3">
+                      connect@conversailabs.com
+                    </p>
+                    <a href="mailto:connect@conversailabs.com">
+                      <Button variant="outline" size="sm">
+                        <Mail className="h-3 w-3 mr-1" />
+                        Contact Support
+                      </Button>
+                    </a>
                   </div>
                 </div>
               </div>

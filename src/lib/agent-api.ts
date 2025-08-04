@@ -12,6 +12,7 @@ interface AgentResponse {
   status: 'active' | 'inactive'
   variables: Record<string, any>
   functions: string[]
+  region: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts: number
@@ -49,6 +50,7 @@ interface CreateAgentRequest {
   welcome_message?: string
   voice_id?: string
   functions?: string[]
+  region?: 'indian' | 'international'
   inbound_phone?: string
   outbound_phone?: string
   max_attempts?: number
@@ -316,10 +318,10 @@ export class AgentAPI {
   }
 
   static async updateTasks(data: { agent_id: string; tasks: string }, accessToken: string) {
-    const response = await fetch(`${API_BASE_URL}/agents/${data.agent_id}/tasks`, {
+    const response = await fetch(`${API_BASE_URL}/agents/update-tasks`, {
       method: 'PUT',
       headers: this.getAuthHeaders(accessToken),
-      body: JSON.stringify({ tasks: data.tasks }),
+      body: JSON.stringify({ agent_id: data.agent_id, tasks: data.tasks }),
     })
 
     if (!response.ok) {
@@ -341,6 +343,7 @@ export class AgentAPI {
       welcome_message: data.welcome_message,
       voice_id: data.voice_id,
       functions: data.functions,
+      region: data.region, // Add region field
       inbound_phone: data.inbound_phone,
       outbound_phone: data.outbound_phone,
       max_attempts: data.max_attempts,
