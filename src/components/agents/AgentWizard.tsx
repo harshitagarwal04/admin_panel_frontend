@@ -1174,11 +1174,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
                         </p>
                         <GenerateButton
                           onClick={() => {
-                            try {
-                              handleGenerateTasks()
-                            } catch (e: any) {
-                              toast.error('Error generating tasks')
-                            }
+                            handleGenerateTasks()
                           }}
                           isLoading={isGenerating}
                           text="Generate Tasks"
@@ -1328,6 +1324,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       
       toast.success('Website content analyzed and FAQs generated successfully!')
     } catch (error: any) {
+      console.error('Website analysis error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to analyze website'
         setError(errorMessage)
@@ -1391,6 +1388,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       
       toast.success('Tasks generated successfully!')
     } catch (error: any) {
+      console.error('Task generation error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to generate tasks'
         setError(errorMessage)
@@ -1435,6 +1433,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       setGeneratedConversationFlow(conversationResponse.conversation_flow)
       toast.success('Conversation flow generated successfully!')
     } catch (error: any) {
+      console.error('Conversation flow generation error:', error)
       if (isMountedRef.current) {
         const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to generate conversation flow'
         setError(errorMessage)
