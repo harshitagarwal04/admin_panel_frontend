@@ -167,7 +167,7 @@ export default function LeadsPage() {
   };
 
   const handleStopLead = (leadId: string) => {
-    stopLeadMutation.mutate({ leadId, disposition: 'not_interested' }, {
+    stopLeadMutation.mutate({ leadId }, {
       onSuccess: () => {
         toast.success('Lead stopped successfully!')
       },
@@ -363,11 +363,11 @@ export default function LeadsPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => handleScheduleCall(lead.id)}
-                            disabled={lead.status === 'done' || lead.status === 'in_progress' || lead.status === 'stopped' || schedulingLeadId === lead.id}
+                            disabled={lead.status === 'done' || lead.status === 'in_progress' || schedulingLeadId === lead.id}
                           >
                             {schedulingLeadId === lead.id ? 'Scheduling...' :
                              lead.status === 'done' ? 'Completed' :
-                             lead.status === 'stopped' ? 'Stopped' :
+                             lead.status === 'stopped' ? 'Schedule Again' :
                              lead.status === 'in_progress' ? 'In Progress' :
                              'Schedule Now'}
                           </Button>

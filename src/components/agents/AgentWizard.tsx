@@ -486,7 +486,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
   
   // Business Configuration State (Page 3)
   const [inboundPhone, setInboundPhone] = useState<string>('')
-  const [outboundPhone, setOutboundPhone] = useState<string>('+14846239963')
+  const [outboundPhone, setOutboundPhone] = useState<string>('')
   const [region, setRegion] = useState<'indian' | 'international'>('indian')
   
   // Preview panel state
@@ -744,13 +744,13 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
             <Input
               id="outbound_phone"
               type="tel"
-              value={region === 'indian' ? '' : "+14846239963"}
+              value={region === 'indian' ? '' : outboundPhone}
               onChange={(e) => setOutboundPhone(e.target.value)}
               placeholder={region === 'indian' ? 'Currently Disabled' : "+1 (555) 987-6543"}
               className="w-full bg-gray-100 pr-10"
               disabled={true}
             />
-            <InlineInfoTooltip text={region === 'indian' ? 'Random Indian numbers will be used' : 'Contact support to have your own custom number'} />
+            <InlineInfoTooltip text='Contact support to have your own custom number' />
           </div>
           <p className="text-xs text-gray-500 mt-1">
             {region === 'indian' ? '+91 Number managed by us' : 'Phone number for outgoing calls'}
@@ -1569,7 +1569,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       generated_faqs: []
     })
     setInboundPhone('')
-    setOutboundPhone('+14846239963')
+    setOutboundPhone('')
     setWelcomeMessage('')
     setTouchedFields(new Set())
     setFieldErrors({})
