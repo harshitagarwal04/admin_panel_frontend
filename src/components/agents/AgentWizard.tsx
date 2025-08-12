@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, memo, useCallback, useRef } from '
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Agent, AgentConfiguration } from '@/types'
+import { Agent, AgentConfiguration, AgentBasicInfo } from '@/types'
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Pencil, RefreshCw, Check, X } from 'lucide-react'
 import { FAQEditorModal } from './FAQEditorModal'
 import { TaskEditorModal } from './TaskEditorModal'
@@ -607,9 +607,34 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
   // Initialize form data when editing
   useEffect(() => {
     if (editingAgent) {
-      if (editingAgent.configuration) {
-        setConfiguration(editingAgent.configuration)
+      
+      // Check if agent has configuration_data field with basic_info (database field)
+      if (editingAgent.configuration_data?.basic_info) {
+        setConfiguration({
+          basic_info: editingAgent.configuration_data.basic_info
+        })
+      } 
+      // Check if agent has configuration field with basic_info (fallback)
+      else if (editingAgent.configuration?.basic_info) {
+        setConfiguration({
+          basic_info: editingAgent.configuration.basic_info
+        })
+      } else {
+        // Fallback to extracting from variables for backward compatibility
+        const variables = editingAgent.variables || {}
+        const basicInfo: AgentBasicInfo = {
+          agent_name: editingAgent.name || '',
+          intended_role: variables.intended_role || '',
+          target_industry: variables.target_industry || '',
+          company_name: variables.company_name || '',
+          primary_service: variables.primary_service || '',
+        }
+        
+        setConfiguration({
+          basic_info: basicInfo
+        })
       }
+      
       setSelectedVoice(editingAgent.voice_id || '')
       setWelcomeMessage(editingAgent.welcome_message || '')
       
@@ -623,6 +648,35 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       if (editingAgent.region) {
         setRegion(editingAgent.region as 'indian' | 'international')
       }
+      
+      // Initialize website data from editing agent if available
+      if (editingAgent.website_data) {
+        setWebsiteData({
+          url: editingAgent.website_data.website_url || '',
+          content: '',  // Content not needed for display
+          faqs: editingAgent.website_data.generated_faqs || [],
+          business_context: editingAgent.website_data.business_context || '',
+          tasks: editingAgent.website_data.tasks || '',
+          isLoaded: true
+        })
+        
+        // Also set the website URL in configuration so it shows in the UI input field
+        if (editingAgent.website_data?.website_url) {
+          setConfiguration(prev => ({
+            ...prev,
+            company_website: editingAgent.website_data?.website_url
+          }))
+        }
+        
+        // Also set generated FAQs and tasks
+        if (editingAgent.website_data.generated_faqs) {
+          setGeneratedFAQs(editingAgent.website_data.generated_faqs)
+        }
+        if (editingAgent.website_data.tasks) {
+          const parsedTasks = parseTasksString(editingAgent.website_data.tasks)
+          setGeneratedTasks(parsedTasks)
+        }
+      }
     }
     
     // Initialize static sections for prompt assembly (always set when component initializes)
@@ -635,7 +689,7 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
 - Confirm unclear information and collect all necessary details before taking action.
 - Never mention any internal functions or processes being called.
 - Use empathetic and calming language when dealing with distressed users. If at any time the customer shows anger or requests a human agent, call transfer_call function.
-- Use the user's name but not too muchthroughout the conversation to build rapport and provide reassurance.
+- Use the user's name but not too much throughout the conversation to build rapport and provide reassurance.
 - When mentioning dates in the past, use relative phrasing like '2 days ago', 'one week ago'.
 - Remember what you are outputting is being spoken, Say 6:45 am as "six forty-five" not "six colon forty-five" or "six four five am". Do not use 'o-clock' in the same sentence as 'am' or 'pm'.
 - Only answer questions relevant to your role. If the user asks you to do tasks outside of your scope, politely refuse and redirect the conversation.
@@ -644,10 +698,12 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
     }
   }, [editingAgent, staticSections])
 
-  // Load website data when editing an existing agent
+  // Note: Website data is now loaded directly from editingAgent.website_data in the previous useEffect
+  // This separate API call is kept as a fallback for older agents that might not have website_data populated
   useEffect(() => {
     const loadWebsiteData = async () => {
-      if (editingAgent && tokens?.access_token) {
+      // Only make the API call if editingAgent doesn't already have website_data
+      if (editingAgent && tokens?.access_token && !editingAgent.website_data) {
         try {
           const websiteData = await AgentAPI.getWebsiteData(editingAgent.id, tokens.access_token)
           
@@ -666,8 +722,23 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
             const parsedTasks = parseTasksString(websiteData.tasks)
             setGeneratedTasks(parsedTasks)
           }
+          
+          // Also update websiteData state and configuration
+          if (websiteData.website_url) {
+            setWebsiteData((prev: any) => ({
+              ...prev,
+              url: websiteData.website_url || '',
+              isLoaded: true
+            }))
+            
+            // Set in configuration so it shows in the UI input field
+            setConfiguration(prev => ({
+              ...prev,
+              company_website: websiteData.website_url
+            }))
+          }
         } catch (error) {
-          console.error('Failed to load website data:', error)
+          // Failed to load website data, silently continue
         }
       }
     }
@@ -870,7 +941,6 @@ const AgentWizardComponent = ({ isOpen, onClose, onComplete, editingAgent }: Age
       onComplete(agent)
       handleClose()
     } catch (error) {
-      console.error('Error saving agent:', error)
       setError(error instanceof Error ? error.message : 'Failed to save agent')
       toast.error('Failed to save agent')
     } finally {

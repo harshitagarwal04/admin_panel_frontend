@@ -80,6 +80,9 @@ export function useCreateAgent() {
       
       // Invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() })
+      
+      // Invalidate demo status to update the banner
+      queryClient.invalidateQueries({ queryKey: ['demo', 'status'] })
     },
     onError: () => {
       // On error, invalidate to refetch correct data
@@ -191,20 +194,14 @@ export function useDeleteAgent() {
     mutationFn: (agentId: string) => 
       AgentAPI.deleteAgent(agentId, tokens?.access_token || ''),
     onSuccess: (_, agentId) => {
-      // Remove from cache immediately
-      queryClient.setQueryData(agentKeys.lists(), (old: any) => {
-        if (!old) return old
-        return {
-          ...old,
-          agents: old.agents.filter((agent: Agent) => agent.id !== agentId)
-        }
-      })
-      
       // Remove individual agent cache
       queryClient.removeQueries({ queryKey: agentKeys.detail(agentId) })
       
-      // Invalidate lists to ensure consistency
+      // Invalidate lists to refetch fresh data
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() })
+      
+      // Invalidate demo status to update the banner
+      queryClient.invalidateQueries({ queryKey: ['demo', 'status'] })
     }
   })
 }

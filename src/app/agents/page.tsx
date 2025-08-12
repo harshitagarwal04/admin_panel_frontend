@@ -1,17 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { Button } from '@/components/ui/Button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/Table'
 import { Agent } from '@/types'
-import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCircle } from 'lucide-react'
+import { Plus, Phone, Settings, Play, Pause, Search, MoreHorizontal, MessageCircle, Edit, Trash2 } from 'lucide-react'
 import { AgentWizard } from '@/components/agents/AgentWizard'
 import { TestAgentModal } from '@/components/agents/TestAgentModal'
 import { WhatsAppConversations } from '@/components/whatsapp/WhatsAppConversations'
 import { enhanceAgentWithWhatsApp } from '@/lib/whatsapp-frontend-store'
-import { useAgents, useVoices, useToggleAgentStatus } from '@/hooks/useAgents'
+import { useAgents, useVoices, useToggleAgentStatus, useDeleteAgent } from '@/hooks/useAgents'
 import { useDemoStatus } from '@/hooks/useDemo'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
@@ -24,6 +24,8 @@ export default function AgentsPage() {
   const [testingAgent, setTestingAgent] = useState<Agent | null>(null)
   const [showTestModal, setShowTestModal] = useState(false)
   const [regionFilter, setRegionFilter] = useState<'all' | 'indian' | 'international'>('all')
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+  const [deleteConfirmAgent, setDeleteConfirmAgent] = useState<Agent | null>(null)
   
   const queryClient = useQueryClient()
   
@@ -32,6 +34,7 @@ export default function AgentsPage() {
   const { data: voicesData, isLoading: voicesLoading } = useVoices()
   const { data: demoStatus } = useDemoStatus()
   const toggleStatusMutation = useToggleAgentStatus()
+  const deleteAgentMutation = useDeleteAgent()
   
   const allAgents = agentsData?.agents ? agentsData.agents.agents.map(enhanceAgentWithWhatsApp) : []
   
@@ -68,6 +71,26 @@ export default function AgentsPage() {
 
   const handleEditAgent = (agent: Agent) => {
     setEditingAgent(agent)
+    setActiveDropdown(null)
+  }
+
+  const handleDeleteAgent = (agent: Agent) => {
+    setDeleteConfirmAgent(agent)
+    setActiveDropdown(null)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmAgent) {
+      deleteAgentMutation.mutate(deleteConfirmAgent.id, {
+        onSuccess: () => {
+          toast.success('Agent deleted successfully')
+          setDeleteConfirmAgent(null)
+        },
+        onError: (error: any) => {
+          toast.error(error?.message || 'Failed to delete agent')
+        }
+      })
+    }
   }
 
   const handleOpenWhatsAppConversations = (agent: Agent) => {
@@ -91,6 +114,23 @@ export default function AgentsPage() {
     }
     setShowWizard(true)
   }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (activeDropdown) {
+        const target = event.target as HTMLElement
+        if (!target.closest('.dropdown-menu')) {
+          setActiveDropdown(null)
+        }
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [activeDropdown])
 
   return (
     <ProtectedRoute>
@@ -241,13 +281,33 @@ export default function AgentsPage() {
                         <Phone className="h-4 w-4" />
                         <span>Test</span>
                       </button>
-                      <button 
-                        onClick={() => handleEditAgent(agent)}
-                        className="p-1 text-gray-400 hover:text-gray-600"
-                        title="Edit Agent"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
+                      <div className="relative dropdown-menu">
+                        <button
+                          onClick={() => setActiveDropdown(activeDropdown === agent.id ? null : agent.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="More Options"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                        {activeDropdown === agent.id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                            <button
+                              onClick={() => handleEditAgent(agent)}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit Agent
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAgent(agent)}
+                              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete Agent
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -299,6 +359,36 @@ export default function AgentsPage() {
           }}
           testCallsRemaining={3}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmAgent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Delete Agent
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to delete "{deleteConfirmAgent.name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmAgent(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={confirmDelete}
+                disabled={deleteAgentMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleteAgentMutation.isPending ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
       </Layout>
     </ProtectedRoute>

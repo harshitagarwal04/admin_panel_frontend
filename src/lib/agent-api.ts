@@ -22,6 +22,9 @@ interface AgentResponse {
   timezone: string
   max_call_duration_minutes: number
   retell_agent_id?: string
+  configuration?: any
+  configuration_data?: any  // The actual field from backend
+  website_data?: any  // Website data from related table
   created_at: string
   updated_at: string
 }
@@ -354,6 +357,9 @@ export class AgentAPI {
       max_call_duration_minutes: data.max_call_duration_minutes,
       retell_agent_id: data.retell_agent_id,
       retell_llm_id: '', // Not provided by backend
+      configuration: data.configuration, // Include configuration field
+      configuration_data: data.configuration_data, // Include configuration_data field
+      website_data: data.website_data, // Include website_data field
       created_at: data.created_at,
       updated_at: data.updated_at
     }

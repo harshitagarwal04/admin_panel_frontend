@@ -70,6 +70,13 @@ export interface Agent {
   }
   // New comprehensive configuration
   configuration?: AgentConfiguration
+  configuration_data?: any  // This is the actual field from backend
+  website_data?: {
+    website_url?: string
+    generated_faqs?: any[]
+    business_context?: string
+    tasks?: string
+  }
   created_at: string
   updated_at: string
 }
