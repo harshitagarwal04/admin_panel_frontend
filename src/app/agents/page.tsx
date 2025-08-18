@@ -26,6 +26,7 @@ export default function AgentsPage() {
   const [regionFilter, setRegionFilter] = useState<'all' | 'indian' | 'international'>('all')
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const [deleteConfirmAgent, setDeleteConfirmAgent] = useState<Agent | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
   
   const queryClient = useQueryClient()
   
@@ -120,8 +121,9 @@ export default function AgentsPage() {
     const handleClickOutside = (event: MouseEvent) => {
       if (activeDropdown) {
         const target = event.target as HTMLElement
-        if (!target.closest('.dropdown-menu')) {
+        if (!target.closest('.dropdown-menu') && !target.closest('[role="dropdown-portal"]')) {
           setActiveDropdown(null)
+          setDropdownPosition(null)
         }
       }
     }
@@ -177,7 +179,7 @@ export default function AgentsPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg border border-gray-200">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-visible">
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
@@ -271,7 +273,7 @@ export default function AgentsPage() {
                       ) : 'Unknown'}
                     </div>
                   </TableCell>
-                  <TableCell className="py-4">
+                  <TableCell className="py-4 relative">
                     <div className="flex justify-end space-x-1">
                       <button 
                         onClick={() => handleTestCall(agent)}
@@ -283,30 +285,24 @@ export default function AgentsPage() {
                       </button>
                       <div className="relative dropdown-menu">
                         <button
-                          onClick={() => setActiveDropdown(activeDropdown === agent.id ? null : agent.id)}
+                          onClick={(e) => {
+                            if (activeDropdown === agent.id) {
+                              setActiveDropdown(null)
+                              setDropdownPosition(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setActiveDropdown(agent.id)
+                              setDropdownPosition({
+                                top: rect.bottom + window.scrollY,
+                                left: rect.right - 192 + window.scrollX // 192px = 48 * 4 (w-48 in tailwind)
+                              })
+                            }
+                          }}
                           className="p-1 text-gray-400 hover:text-gray-600"
                           title="More Options"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
-                        {activeDropdown === agent.id && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                            <button
-                              onClick={() => handleEditAgent(agent)}
-                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Agent
-                            </button>
-                            <button
-                              onClick={() => handleDeleteAgent(agent)}
-                              className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Agent
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </TableCell>
@@ -359,6 +355,39 @@ export default function AgentsPage() {
           }}
           testCallsRemaining={3}
         />
+      )}
+
+      {/* Dropdown Menu Portal */}
+      {activeDropdown && dropdownPosition && (
+        <div 
+          role="dropdown-portal"
+          className="fixed w-48 bg-white rounded-md shadow-lg z-[100] border border-gray-200"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`
+          }}
+        >
+          <button
+            onClick={() => {
+              const agent = agents.find(a => a.id === activeDropdown)
+              if (agent) handleEditAgent(agent)
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-md"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Agent
+          </button>
+          <button
+            onClick={() => {
+              const agent = agents.find(a => a.id === activeDropdown)
+              if (agent) handleDeleteAgent(agent)
+            }}
+            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-md"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Agent
+          </button>
+        </div>
       )}
 
       {/* Delete Confirmation Modal */}
