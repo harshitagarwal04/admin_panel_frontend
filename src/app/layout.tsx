@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Lexend } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { QueryProvider } from '@/contexts/QueryProvider'
 import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
+const lexend = Lexend({ 
+  subsets: ['latin'],
+  variable: '--font-lexend'
+})
 
 export const metadata: Metadata = {
   title: 'ConversAI Labs Admin Panel',
@@ -19,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${lexend.variable}`}>
         <QueryProvider>
           <AuthProvider>
             {children}
