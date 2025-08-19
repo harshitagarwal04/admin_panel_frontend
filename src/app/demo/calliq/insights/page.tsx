@@ -264,10 +264,10 @@ export default function DemoInsights() {
         </div>
 
         {/* Secondary CTAs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => router.push('/demo/calliq/upload')}
-            className="bg-white border border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all"
+            className="bg-white border border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:shadow-md transition-all flex flex-col items-center text-center"
           >
             <TargetIcon className="w-8 h-8 text-blue-500 mb-2" />
             <h4 className="font-semibold text-gray-900">Try Analysis</h4>
@@ -278,20 +278,12 @@ export default function DemoInsights() {
             href="https://wa.me/+918076018082?text=Hi!%20I%20would%20like%20to%20schedule%20a%20CalliQ%20demo."
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white border border-gray-300 rounded-lg p-4 hover:border-green-400 hover:shadow-md transition-all"
+            className="bg-white border border-gray-300 rounded-lg p-4 hover:border-green-400 hover:shadow-md transition-all flex flex-col items-center text-center"
           >
             <MessageSquareIcon className="w-8 h-8 text-green-500 mb-2" />
             <h4 className="font-semibold text-gray-900">Schedule Demo</h4>
             <p className="text-sm text-gray-600 mt-1">Talk to our team</p>
           </a>
-
-          <button
-            className="bg-white border border-gray-300 rounded-lg p-4 hover:border-purple-400 hover:shadow-md transition-all"
-          >
-            <UsersIcon className="w-8 h-8 text-purple-500 mb-2" />
-            <h4 className="font-semibold text-gray-900">Team Pricing</h4>
-            <p className="text-sm text-gray-600 mt-1">Get a custom quote</p>
-          </button>
         </div>
       </div>
     </div>

@@ -230,31 +230,6 @@ export default function DemoFeatures() {
         </div>
       </div>
 
-      {/* Pricing Teaser */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Flexible Pricing for Every Team</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="border border-gray-200 rounded-lg p-6">
-            <h3 className="font-semibold text-gray-900 mb-2">Starter</h3>
-            <p className="text-3xl font-bold text-gray-900 mb-2">₹999<span className="text-lg text-gray-500">/user/mo</span></p>
-            <p className="text-sm text-gray-600">Perfect for small teams</p>
-          </div>
-          <div className="border-2 border-blue-500 rounded-lg p-6 relative">
-            <span className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-3 py-1 rounded-full text-xs">
-              POPULAR
-            </span>
-            <h3 className="font-semibold text-gray-900 mb-2">Professional</h3>
-            <p className="text-3xl font-bold text-gray-900 mb-2">₹1999<span className="text-lg text-gray-500">/user/mo</span></p>
-            <p className="text-sm text-gray-600">For growing sales teams</p>
-          </div>
-          <div className="border border-gray-200 rounded-lg p-6">
-            <h3 className="font-semibold text-gray-900 mb-2">Enterprise</h3>
-            <p className="text-3xl font-bold text-gray-900 mb-2">Custom</p>
-            <p className="text-sm text-gray-600">Volume discounts available</p>
-          </div>
-        </div>
-      </div>
-
       {/* Multiple CTAs */}
       <div className="space-y-4">
         {/* Primary CTA */}

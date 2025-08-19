@@ -113,7 +113,7 @@ export default function DemoUploadAnalysis() {
                 <div
                   key={call.id}
                   onClick={() => handleSelectCall(call.id)}
-                  className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                  className={`border rounded-lg p-4 cursor-pointer transition-all relative ${
                     selectedCall === call.id 
                       ? 'border-blue-500 bg-blue-50 shadow-md' 
                       : 'border-gray-200 hover:border-blue-400 hover:shadow-sm'
@@ -138,6 +138,28 @@ export default function DemoUploadAnalysis() {
                       <PlayIcon className="w-5 h-5" />
                     </button>
                   </div>
+                  
+                  {/* Progress overlay for selected call */}
+                  {selectedCall === call.id && (uploadState === 'uploading' || uploadState === 'analyzing') && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      {uploadState === 'uploading' ? (
+                        <>
+                          <div className="w-full bg-blue-100 rounded-full h-1.5">
+                            <div 
+                              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-blue-600 mt-1">Uploading... {progress}%</p>
+                        </>
+                      ) : (
+                        <div className="flex items-center">
+                          <SparklesIcon className="w-4 h-4 text-purple-500 mr-2 animate-pulse" />
+                          <p className="text-xs text-purple-600">Analyzing with AI...</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -155,48 +177,6 @@ export default function DemoUploadAnalysis() {
               <p className="text-xs text-gray-400">Supports MP3, WAV, M4A (Max 100MB)</p>
             </div>
           </div>
-
-          {/* Progress Indicator */}
-          {(uploadState === 'uploading' || uploadState === 'analyzing') && currentCall && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center mb-4">
-                <FileAudioIcon className="w-8 h-8 text-blue-500 mr-3" />
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{currentCall.title}</p>
-                  <p className="text-sm text-gray-500">
-                    {uploadState === 'uploading' ? 'Uploading...' : 'Analyzing...'}
-                  </p>
-                </div>
-              </div>
-              {uploadState === 'uploading' && (
-                <>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">{progress}% complete</p>
-                </>
-              )}
-              {uploadState === 'analyzing' && (
-                <div className="space-y-2 text-sm text-gray-600">
-                  <p className="flex items-center">
-                    <CheckCircleIcon className="w-4 h-4 text-green-500 mr-2" />
-                    Transcribing conversation
-                  </p>
-                  <p className="flex items-center">
-                    <CheckCircleIcon className="w-4 h-4 text-green-500 mr-2" />
-                    Identifying key moments
-                  </p>
-                  <p className="flex items-center animate-pulse">
-                    <SparklesIcon className="w-4 h-4 text-purple-500 mr-2" />
-                    Generating recommendations...
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Right Panel - Analysis Results */}
