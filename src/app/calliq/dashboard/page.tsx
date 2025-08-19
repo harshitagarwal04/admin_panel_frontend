@@ -17,7 +17,6 @@ import {
 import { calliqAPI } from '@/lib/calliq-api';
 import { CallIQStats, CallIQCall } from '@/types/calliq';
 import { formatDuration } from '@/lib/utils';
-import { mockCall, mockStats, mockInsights } from '@/lib/calliq-mock-data';
 
 // Stats Card Component
 function StatsCard({ 
@@ -52,7 +51,7 @@ function StatsCard({
 }
 
 // Recent Call Row Component
-function RecentCallRow({ call }: { call: CallIQCall }) {
+function RecentCallRow({ call, onPlayAudio }: { call: CallIQCall; onPlayAudio: (callId: string) => void }) {
   const router = useRouter();
   
   return (
@@ -98,8 +97,9 @@ function RecentCallRow({ call }: { call: CallIQCall }) {
             className="text-gray-400 hover:text-gray-600"
             onClick={(e) => {
               e.stopPropagation();
-              // Handle play
+              onPlayAudio(call.id);
             }}
+            title="Play audio"
           >
             <PlayIcon className="w-4 h-4" />
           </button>
@@ -164,44 +164,72 @@ function InsightCard({
 
 
 export default function CallIQDashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<CallIQStats | null>(null);
   const [recentCalls, setRecentCalls] = useState<CallIQCall[]>([]);
+  const [insights, setInsights] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // TODO: Replace with actual API calls when backend is ready
-      // For now, use mock data to demonstrate the UI
-      
-      setStats(mockStats);
-      setRecentCalls([mockCall]);
-
-      // Uncomment when backend is ready:
-      // const [statsData, callsData] = await Promise.all([
-      //   calliqAPI.getStats(),
-      //   calliqAPI.getCalls({ 
-      //     sort_by: 'date', 
-      //     sort_order: 'desc' 
-      //   }, 1, 5)
-      // ]);
-      // setStats(statsData);
-      // setRecentCalls(callsData.calls);
+      // Fetch real data from backend
+      const [statsData, callsData, insightsData] = await Promise.all([
+        calliqAPI.getStats().catch(err => {
+          console.error('Stats error:', err);
+          return { 
+            total_calls: 0, 
+            avg_win_rate: 0, 
+            calls_today: 0, 
+            processing_count: 0,
+            total_duration: 0,
+            team_performance_score: 0,
+            calls_trend: [],
+            win_rate_trend: [],
+            sentiment_trend: []
+          } as CallIQStats;
+        }),
+        calliqAPI.getCalls({ 
+          sort_by: 'date', 
+          sort_order: 'desc' 
+        }, 1, 5).catch(err => {
+          console.error('Calls error:', err);
+          return { calls: [] };
+        }),
+        calliqAPI.getAllInsights(1, 10).catch(err => {
+          console.error('Insights error:', err);
+          return { insights: [] };
+        })
+      ]);
+      setStats(statsData);
+      setRecentCalls(callsData.calls || []);
+      setInsights(insightsData.insights || []);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
-      setError('Failed to load dashboard data');
+      setError('Failed to load dashboard data. Please check your authentication.');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  // Cleanup audio on component unmount
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.remove();
+      }
+    };
+  }, [audioElement]);
 
   if (loading) {
     return (
@@ -211,12 +239,57 @@ export default function CallIQDashboard() {
     );
   }
 
+  const handlePlayAudio = async (callId: string) => {
+    try {
+      // Stop any currently playing audio
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.remove();
+      }
+
+      // Get the recording URL from backend
+      const urlData = await calliqAPI.getRecordingUrl(callId);
+      
+      if (!urlData.url) {
+        alert('No audio recording available for this call');
+        return;
+      }
+
+      // Create and play audio element
+      const audio = new Audio(urlData.url);
+      audio.play().catch(err => {
+        console.error('Failed to play audio:', err);
+        alert('Failed to play audio. The recording may not be available.');
+      });
+      
+      setAudioElement(audio);
+      setPlayingAudioId(callId);
+      
+      // Clear playing state when audio ends
+      audio.onended = () => {
+        setPlayingAudioId(null);
+        setAudioElement(null);
+      };
+    } catch (err) {
+      console.error('Failed to get recording URL:', err);
+      alert('Failed to load audio recording');
+    }
+  };
+
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex items-center">
-          <AlertCircleIcon className="w-5 h-5 text-red-600 mr-2" />
-          <p className="text-red-800">{error}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <AlertCircleIcon className="w-5 h-5 text-red-600 mr-2" />
+            <p className="text-red-800">{error}</p>
+          </div>
+          <button 
+            onClick={() => loadDashboardData()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -298,7 +371,11 @@ export default function CallIQDashboard() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {recentCalls.map((call) => (
-                    <RecentCallRow key={call.id} call={call} />
+                    <RecentCallRow 
+                      key={call.id} 
+                      call={call} 
+                      onPlayAudio={handlePlayAudio}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -313,7 +390,7 @@ export default function CallIQDashboard() {
               <h2 className="text-lg font-semibold text-gray-900">Today's Insights</h2>
             </div>
             <div className="p-6 space-y-4">
-              {mockInsights.slice(0, 3).map((insight) => (
+              {insights.slice(0, 3).map((insight) => (
                 <InsightCard
                   key={insight.id}
                   icon={insight.type === 'opportunity' ? '🎯' : insight.type === 'action_item' ? '⚠️' : '💡'}

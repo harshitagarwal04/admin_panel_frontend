@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   UploadCloudIcon, 
   FileAudioIcon, 
@@ -11,6 +11,7 @@ import {
   DownloadIcon,
   FileTextIcon
 } from 'lucide-react';
+import { calliqAPI } from '@/lib/calliq-api';
 
 type UploadMethod = 'single' | 'bulk';
 type UploadStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'failed';
@@ -23,15 +24,47 @@ interface FileUpload {
   result?: any;
 }
 
+// Error Notification Component
+function ErrorNotification({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 10000); // Auto-close after 10 seconds
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-4 right-4 max-w-md bg-red-50 border border-red-200 rounded-lg shadow-lg p-4 z-50">
+      <div className="flex items-start">
+        <AlertCircleIcon className="w-5 h-5 text-red-600 mt-0.5" />
+        <div className="ml-3 flex-1">
+          <h3 className="text-sm font-medium text-red-800">Upload Error</h3>
+          <p className="text-sm text-red-700 mt-1">{message}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="ml-4 text-red-400 hover:text-red-600"
+        >
+          <XIcon className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CallIQUploadPage() {
   const [uploadMethod, setUploadMethod] = useState<UploadMethod>('single');
   const [isDragging, setIsDragging] = useState(false);
   const [fileUpload, setFileUpload] = useState<FileUpload | null>(null);
   const [bulkFiles, setBulkFiles] = useState<FileUpload[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  const supportedFormats = ['mp3', 'wav', 'm4a', 'mp4', 'mpeg', 'webm', 'ogg'];
+  // Updated to match backend allowed extensions
+  const supportedFormats = [
+    'mp3', 'wav', 'm4a', 'ogg', 'webm', 'aac', 'flac',
+    'mp4', 'mpeg', 'opus', 'wma', 'amr', '3gp', 'ac3',
+    'aiff', 'au', 'm4b', 'mka', 'ra', 'voc', 'wv'
+  ];
   const maxFileSize = 100 * 1024 * 1024; // 100MB
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -64,20 +97,24 @@ export default function CallIQUploadPage() {
     }
   };
 
-  const handleSingleFile = (file: File) => {
+  const handleSingleFile = async (file: File) => {
+    // Clear any previous errors
+    setErrorMessage(null);
+    
     // Validate file
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (!extension || !supportedFormats.includes(extension)) {
-      alert(`Unsupported file format. Supported formats: ${supportedFormats.join(', ')}`);
+      const errorMsg = `File format '.${extension}' is not supported.\n\nSupported audio formats: ${supportedFormats.slice(0, 7).join(', ')} and more...`;
+      setErrorMessage(errorMsg);
       return;
     }
 
     if (file.size > maxFileSize) {
-      alert('File size exceeds 100MB limit');
+      setErrorMessage(`File size (${(file.size / (1024 * 1024)).toFixed(1)}MB) exceeds the 100MB limit.\nPlease compress or trim your audio file.`);
       return;
     }
 
-    // Start upload simulation
+    // Start real upload
     const upload: FileUpload = {
       file,
       status: 'uploading',
@@ -85,28 +122,61 @@ export default function CallIQUploadPage() {
     };
     setFileUpload(upload);
 
-    // Simulate upload progress
-    const interval = setInterval(() => {
+    // Upload to backend
+    try {
+      await calliqAPI.uploadAudio(
+        { file },
+        (progress) => {
+          setFileUpload(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              status: progress.status as UploadStatus,
+              progress: progress.progress,
+              result: progress.result,
+              error: progress.error
+            };
+          });
+        }
+      );
+    } catch (error) {
+      let errorMsg = 'Upload failed';
+      
+      if (error instanceof Error) {
+        // Parse error message for user-friendly display
+        if (error.message.includes('Invalid file format')) {
+          errorMsg = error.message;
+        } else if (error.message.includes('File too large')) {
+          errorMsg = 'File size exceeds the maximum limit of 100MB';
+        } else if (error.message.includes('Network')) {
+          errorMsg = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          errorMsg = 'Authentication error. Please log in again.';
+        } else if (error.message.includes('503')) {
+          errorMsg = 'Service temporarily unavailable. Please try again later.';
+        } else {
+          errorMsg = error.message || 'An unexpected error occurred';
+        }
+      }
+      
+      setErrorMessage(errorMsg);
       setFileUpload(prev => {
         if (!prev) return null;
-        
-        if (prev.progress >= 100) {
-          clearInterval(interval);
-          return { ...prev, status: 'completed', progress: 100 };
-        }
-        
-        if (prev.progress >= 50 && prev.status === 'uploading') {
-          return { ...prev, status: 'processing', progress: prev.progress + 5 };
-        }
-        
-        return { ...prev, progress: prev.progress + 10 };
+        return {
+          ...prev,
+          status: 'failed',
+          error: errorMsg
+        };
       });
-    }, 500);
+    }
   };
 
   const handleBulkCSV = (file: File) => {
+    // Clear any previous errors
+    setErrorMessage(null);
+    
     if (!file.name.endsWith('.csv')) {
-      alert('Please upload a CSV file');
+      setErrorMessage('Invalid file type. Please upload a CSV file with the required columns: audio_url, title, rep_name, customer_name, date');
       return;
     }
 
@@ -199,6 +269,13 @@ export default function CallIQUploadPage() {
 
   return (
     <div className="space-y-6">
+      {/* Error Notification */}
+      {errorMessage && (
+        <ErrorNotification
+          message={errorMessage}
+          onClose={() => setErrorMessage(null)}
+        />
+      )}
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Upload Calls</h1>
@@ -316,6 +393,35 @@ export default function CallIQUploadPage() {
                   >
                     Upload Another
                   </button>
+                </div>
+              )}
+
+              {/* Error Actions */}
+              {fileUpload.status === 'failed' && (
+                <div className="space-y-4">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <AlertCircleIcon className="w-5 h-5 text-red-600 mt-0.5" />
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-red-800">Upload Failed</h3>
+                        <p className="text-sm text-red-700 mt-1">{fileUpload.error}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-4">
+                    <button 
+                      onClick={() => handleSingleFile(fileUpload.file)}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Try Again
+                    </button>
+                    <button 
+                      onClick={() => setFileUpload(null)}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    >
+                      Choose Different File
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

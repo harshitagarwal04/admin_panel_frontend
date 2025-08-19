@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { CallIQCall, CallIQFilters } from '@/types/calliq';
 import { formatDuration, formatDate } from '@/lib/utils';
-import { mockCall } from '@/lib/calliq-mock-data';
+import { calliqAPI } from '@/lib/calliq-api';
 
 export default function CallIQCallsPage() {
   const router = useRouter();
@@ -33,12 +33,29 @@ export default function CallIQCallsPage() {
   const [itemsPerPage] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState('last7days');
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Load mock data - just one call for now
-    setCalls([mockCall]);
-    setFilteredCalls([mockCall]);
+    // Load real data from backend
+    loadCalls();
   }, []);
+
+  const loadCalls = async () => {
+    try {
+      const response = await calliqAPI.getCalls(
+        { sort_by: 'date', sort_order: 'desc' },
+        1,
+        100
+      );
+      setCalls(response.calls);
+      setFilteredCalls(response.calls);
+    } catch (error) {
+      console.error('Failed to load calls:', error);
+      setCalls([]);
+      setFilteredCalls([]);
+    }
+  };
 
   useEffect(() => {
     // Apply filters
@@ -98,6 +115,53 @@ export default function CallIQCallsPage() {
       setSelectedCalls(new Set());
     }
   };
+
+  const handlePlayAudio = async (callId: string) => {
+    try {
+      // Stop any currently playing audio
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.remove();
+      }
+
+      // Get the recording URL from backend
+      const urlData = await calliqAPI.getRecordingUrl(callId);
+      
+      if (!urlData.url) {
+        alert('No audio recording available for this call');
+        return;
+      }
+
+      // Create and play audio element
+      const audio = new Audio(urlData.url);
+      audio.play().catch(err => {
+        console.error('Failed to play audio:', err);
+        alert('Failed to play audio. The recording may not be available.');
+      });
+      
+      setAudioElement(audio);
+      setPlayingAudioId(callId);
+      
+      // Clear playing state when audio ends
+      audio.onended = () => {
+        setPlayingAudioId(null);
+        setAudioElement(null);
+      };
+    } catch (err) {
+      console.error('Failed to get recording URL:', err);
+      alert('Failed to load audio recording');
+    }
+  };
+
+  // Cleanup audio on component unmount
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.remove();
+      }
+    };
+  }, [audioElement]);
 
   // Pagination
   const totalPages = Math.ceil(filteredCalls.length / itemsPerPage);
@@ -388,7 +452,7 @@ export default function CallIQCallsPage() {
                     <div className="flex space-x-2">
                       <button 
                         className="text-gray-400 hover:text-gray-600"
-                        onClick={() => console.log('Play:', call.id)}
+                        onClick={() => handlePlayAudio(call.id)}
                       >
                         <PlayIcon className="w-4 h-4" />
                       </button>

@@ -27,7 +27,7 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
       }
 
       if (!requireOnboarding && user && user.company_id) {
-        router.push('/agents')
+        router.push('/calliq/dashboard')
         return
       }
     }

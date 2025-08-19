@@ -18,7 +18,7 @@ export default function LoginPage() {
   const handleLoginSuccess = () => {
     clearError()
     setError(null)
-    router.push('/agents')
+    router.push('/calliq/dashboard')
   }
 
   const handleLoginError = (errorMessage: string) => {
@@ -35,7 +35,7 @@ export default function LoginPage() {
     try {
       const hasCompany = await login(email)
       if (hasCompany) {
-        router.push('/agents')
+        router.push('/calliq/dashboard')
       } else {
         router.push('/onboarding')
       }

@@ -15,7 +15,7 @@ import {
 } from '@/types/calliq';
 import { AuthStorage } from './auth-storage';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
 
 class CallIQAPI {
   private getHeaders(): HeadersInit {
@@ -28,8 +28,31 @@ class CallIQAPI {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
+      // Handle authentication errors
+      if (response.status === 401 || response.status === 403) {
+        console.error('Authentication error - status:', response.status);
+        // Try to refresh the page to re-authenticate
+        if (response.status === 401) {
+          window.location.href = '/login';
+        }
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      
       const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
-      throw new Error(error.detail || 'Request failed');
+      
+      // Log technical errors to console but show user-friendly messages
+      if (error.detail && (error.detail.includes('psycopg2') || error.detail.includes('SQL'))) {
+        console.error('Database error:', error.detail);
+        throw new Error('A database error occurred. Please try again.');
+      }
+      
+      // Clean up error messages for users
+      let userMessage = error.detail || 'Request failed';
+      if (userMessage.includes('UUID')) {
+        userMessage = 'Invalid request. Please refresh and try again.';
+      }
+      
+      throw new Error(userMessage);
     }
     return response.json();
   }
@@ -42,7 +65,7 @@ class CallIQAPI {
       params.append('end_date', dateRange.end);
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/stats?${params}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/stats?${params}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<CallIQStats>(response);
@@ -77,7 +100,7 @@ class CallIQAPI {
       }
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls?${params}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls?${params}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<CallIQListResponse>(response);
@@ -85,10 +108,18 @@ class CallIQAPI {
 
   // Get Single Call
   async getCall(callId: string): Promise<CallIQCall> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<CallIQCall>(response);
+  }
+
+  // Get Call Status (for polling during upload)
+  async getCallStatus(callId: string): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}/status`, {
+      headers: this.getHeaders()
+    });
+    return this.handleResponse(response);
   }
 
   // Upload Audio File
@@ -136,8 +167,15 @@ class CallIQAPI {
             message: 'Processing audio...'
           });
 
-          // Poll for status updates
-          this.pollCallStatus(result.id, (call) => {
+          // Poll for status updates - call_id is in data.call_id
+          const callId = result.data?.call_id || result.call_id || result.id;
+          if (!callId) {
+            console.error('No call_id in response:', result);
+            reject(new Error('No call ID returned from upload'));
+            return;
+          }
+          
+          this.pollCallStatus(callId, (call) => {
             const progressMap = {
               'uploaded': 55,
               'transcribing': 70,
@@ -169,7 +207,7 @@ class CallIQAPI {
         reject(new Error('Upload failed'));
       });
 
-      xhr.open('POST', `${API_BASE_URL}/api/v1/calliq/upload`);
+      xhr.open('POST', `${API_BASE_URL}/calliq/upload/audio`);
       const tokens = AuthStorage.getTokens();
       if (tokens) {
         xhr.setRequestHeader('Authorization', `Bearer ${tokens.access_token}`);
@@ -183,7 +221,7 @@ class CallIQAPI {
     const formData = new FormData();
     formData.append('file', request.csv_file);
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/bulk-upload`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/upload/csv`, {
       method: 'POST',
       headers: {
         ...this.getHeaders(),
@@ -196,7 +234,19 @@ class CallIQAPI {
 
   // Get Call Insights
   async getInsights(callId: string): Promise<CallIQInsightsResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}/insights`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}/insights`, {
+      headers: this.getHeaders()
+    });
+    return this.handleResponse<CallIQInsightsResponse>(response);
+  }
+
+  // Get All Insights (across all calls)
+  async getAllInsights(page = 1, pageSize = 50): Promise<CallIQInsightsResponse> {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('page_size', pageSize.toString());
+    
+    const response = await fetch(`${API_BASE_URL}/calliq/insights?${params}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<CallIQInsightsResponse>(response);
@@ -204,7 +254,7 @@ class CallIQAPI {
 
   // Get Similar Calls
   async getSimilarCalls(callId: string, limit = 5): Promise<SimilarCall[]> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}/similar?limit=${limit}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}/similar?limit=${limit}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<SimilarCall[]>(response);
@@ -212,7 +262,7 @@ class CallIQAPI {
 
   // Get Patterns
   async getPatterns(callId: string): Promise<CallPattern[]> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}/patterns`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}/patterns`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<CallPattern[]>(response);
@@ -226,7 +276,7 @@ class CallIQAPI {
       params.append('end_date', dateRange.end);
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/team/performance?${params}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/team/performance?${params}`, {
       headers: this.getHeaders()
     });
     return this.handleResponse<RepPerformance[]>(response);
@@ -234,7 +284,7 @@ class CallIQAPI {
 
   // Delete Call
   async deleteCall(callId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}`, {
       method: 'DELETE',
       headers: this.getHeaders()
     });
@@ -245,7 +295,7 @@ class CallIQAPI {
 
   // Bulk Delete
   async bulkDelete(callIds: string[]): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/bulk-delete`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/bulk-delete`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ call_ids: callIds })
@@ -257,7 +307,7 @@ class CallIQAPI {
 
   // Export Calls
   async exportCalls(callIds: string[], format: 'csv' | 'pdf' = 'csv'): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/export`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/export`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ call_ids: callIds, format })
@@ -272,7 +322,7 @@ class CallIQAPI {
 
   // Get Recording URL (with signed URL from GCS)
   async getRecordingUrl(callId: string): Promise<{ url: string; expires_in: number }> {
-    const response = await fetch(`${API_BASE_URL}/api/v1/calliq/calls/${callId}/recording-url`, {
+    const response = await fetch(`${API_BASE_URL}/calliq/calls/${callId}/recording-url`, {
       headers: this.getHeaders()
     });
     return this.handleResponse(response);
@@ -290,7 +340,7 @@ class CallIQAPI {
     return new Promise((resolve, reject) => {
       const poll = async () => {
         try {
-          const call = await this.getCall(callId);
+          const call = await this.getCallStatus(callId);
           onUpdate(call);
           
           if (call.status === 'completed' || call.status === 'failed') {
@@ -302,7 +352,22 @@ class CallIQAPI {
             setTimeout(poll, interval);
           }
         } catch (error) {
-          reject(error);
+          // Log polling errors but don't necessarily fail
+          console.error('Error polling call status:', error);
+          
+          // If we get a 404, the call might not be created yet, keep trying
+          if (error instanceof Error && error.message.includes('not found')) {
+            if (attempts < 5) {
+              // Try a few more times for new calls
+              attempts++;
+              setTimeout(poll, interval);
+              return;
+            }
+          }
+          
+          // For other errors, reject with a user-friendly message
+          const userError = error instanceof Error ? error.message : 'Unable to check processing status';
+          reject(new Error(userError));
         }
       };
       
@@ -311,8 +376,8 @@ class CallIQAPI {
   }
 
   // Helper: Get status message
-  private getStatusMessage(status: CallIQCall['status']): string {
-    const messages = {
+  private getStatusMessage(status: string): string {
+    const messages: Record<string, string> = {
       'uploaded': 'File uploaded successfully',
       'transcribing': 'Transcribing audio...',
       'analyzing': 'Analyzing conversation...',

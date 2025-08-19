@@ -59,7 +59,7 @@ export default function OnboardingPage() {
 
     try {
       await completeOnboarding(formData)
-      router.push('/agents')
+      router.push('/calliq/dashboard')
     } catch (error) {
       console.error('Onboarding failed:', error)
     }

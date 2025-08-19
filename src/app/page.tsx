@@ -25,7 +25,7 @@ export default function HomePage() {
       if (!isAuthenticated) {
         router.push('/login')
       } else if (user && user.company_id) {
-        router.push('/agents')
+        router.push('/calliq/dashboard')
       } else if (user && !user.company_id) {
         router.push('/onboarding')
       }
